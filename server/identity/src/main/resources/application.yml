@@ -25,3 +25,9 @@ spring:
 server:
   address: ${SERVER_ADDRESS:127.0.0.1}
   port: ${SERVER_PORT:8081}
+
+bloom:
+  jwt:
+    secret: ${JWT_SECRET:bloom-dev-secret-change-me-in-production-min-32-chars!!}
+    access-token-ttl: ${JWT_ACCESS_TTL:15m}
+    refresh-token-ttl: ${JWT_REFRESH_TTL:30d}
