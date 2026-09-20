@@ -1,0 +1,56 @@
+name: Identity Service CI
+
+on:
+  push:
+    branches: [ "develop" ]
+    paths:
+      - 'server/identity/**'    # Запускаем ТОЛЬКО если изменился код Identity
+      - '.github/workflows/identity-ci.yml'
+  pull_request:
+    branches: [ "develop" ]
+    paths:
+      - 'server/identity/**'
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    # Настройки для интеграционных тестов с реальной БД
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: bloom_identity
+          POSTGRES_USER: bloom_identity
+          POSTGRES_PASSWORD: bloom_identity
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up JDK 21
+      uses: actions/setup-java@v4
+      with:
+        java-version: '21'
+        distribution: 'temurin'
+        cache: gradle
+
+    - name: Grant execute permission for gradlew
+      run: chmod +x server/gradlew
+
+    - name: Build and Test Identity Service
+      working-directory: ./server
+      run: ./gradlew :identity:build
+      env:
+        DB_HOST: localhost
+        DB_PORT: 5432
+        DB_NAME: bloom_identity
+        DB_USER: bloom_identity
+        DB_PASSWORD: bloom_identity
