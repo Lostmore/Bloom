@@ -1,0 +1,63 @@
+server:
+  address: ${SERVER_ADDRESS:127.0.0.1}
+  port: ${SERVER_PORT:8080}
+
+spring:
+  application:
+    name: bloom-api-gateway
+  cloud:
+    gateway:
+      server:
+        webflux:
+          httpclient:
+            connect-timeout: 2000
+            response-timeout: 10s
+          default-filters:
+            - StripPrefix=2
+            - RemoveRequestHeader=X-Internal-Token
+            - RemoveRequestHeader=X-User-ID
+          routes:
+#           - id: example
+#             uri: ${EXAMPLE_URL:http://localhost:8095}
+#             predicates:
+#               - Path=/api/v1/example/**
+            - id: identity
+              uri: ${IDENTITY_URL:http://localhost:8081}
+              predicates:
+                - Path=/api/v1/auth/**
+            - id: users
+              uri: ${USERS_URL:http://localhost:8082}
+              predicates:
+                - Path=/api/v1/users/**,/api/v1/reports
+            - id: profile
+              uri: ${PROFILE_URL:http://localhost:8085}
+              predicates:
+                - Path=/api/v1/profiles/**,/api/v1/interests
+            - id: interactions
+              uri: ${INTERACTIONS_URL:http://localhost:8083}
+              predicates:
+                - Path=/api/v1/interactions/**,/api/v1/matches/**
+            - id: activities
+              uri: ${ACTIVITIES_URL:http://localhost:8084}
+              predicates:
+                - Path=/api/v1/activities/**
+            - id: chat-websocket
+              uri: ${CHAT_WS_URL:ws://localhost:8091}
+              predicates:
+                - Path=/api/v1/ws
+            - id: chat
+              uri: ${CHAT_URL:http://localhost:8091}
+              predicates:
+                - Path=/api/v1/conversations/**
+            - id: discovery
+              uri: ${DISCOVERY_URL:http://localhost:8092}
+              predicates:
+                - Path=/api/v1/discovery/**
+            - id: media
+              uri: ${MEDIA_URL:http://localhost:8093}
+              predicates:
+                - Path=/api/v1/media/**
+            - id: notifications
+              uri: ${NOTIFICATIONS_URL:http://localhost:8094}
+              predicates:
+                - Path=/api/v1/notifications/**
