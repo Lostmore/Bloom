@@ -7,3 +7,11 @@ local.properties
 *.iml
 *.log
 .tools/
+**/.gradle/
+**/bin/
+**/out/
+**/.env
+**/.env.*
+!**/.env.example
+go.work
+go.work.sum

@@ -1,0 +1,4 @@
+rootProject.name = 'bloom-server'
+
+// Only Java applications belong to this Gradle build.
+include 'api-gateway', 'identity', 'users', 'interactions', 'activities'
