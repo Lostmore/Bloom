@@ -31,3 +31,16 @@ bloom:
     secret: ${JWT_SECRET:bloom-dev-secret-change-me-in-production-min-32-chars!!}
     access-token-ttl: ${JWT_ACCESS_TTL:15m}
     refresh-token-ttl: ${JWT_REFRESH_TTL:30d}
+
+  security:
+    argon2:
+      memory: ${ARGON2_MEMORY:65536}
+      iterations: ${ARGON2_ITERATIONS:3}
+      parallelism: ${ARGON2_PARALLELISM:1}
+
+logging:
+  level:
+    app.bloom.identity: INFO
+    org.springframework.security: WARN
+  pattern:
+    console: "%d{ISO8601} [%thread] %-5level %logger{36} - %msg%n"
