@@ -33,6 +33,19 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     @Override
     protected void doFilterInternal(HttpServletRequest req, HttpServletResponse res, FilterChain chain) throws ServletException, IOException {
-      // todo: validates jwt token
+        String header = req.getHeader("Authorization");
+        if (header != null && header.startsWith("Bearer ")) {
+            Claims claims = jwt.parse(header.substring(7));
+            if (claims != null && "access".equals(jwt.type(claims))) {
+                UUID id = jwt.accountId(claims);
+                long tv = jwt.tokenVersion(claims);
+                accounts.findById(id)
+                        .filter(Account::isActive)
+                        .filter(a -> a.getTokenVersion() == tv)
+                        .ifPresent(a -> SecurityContextHolder.getContext()
+                            .setAuthentication(new UsernamePasswordAuthenticationToken(id, null, Collections.emptyList())));
+            }
+        }
+        chain.doFilter(req, res);
     }
 }
