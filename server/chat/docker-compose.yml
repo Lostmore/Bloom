@@ -1,0 +1,19 @@
+version: '3.8'
+services:
+  chat-db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: testuser
+      POSTGRES_PASSWORD: testpass
+      POSTGRES_DB: chatdb
+    ports:
+      - "5432:5432"
+  chat-app:
+    build: .
+    ports:
+      - "8091:8091"
+    environment:
+      # Важно! Тут мы обращаемся к БД по имени контейнера "chat-db", а не localhost
+      - DATABASE_URL=postgres://testuser:testpass@chat-db:5432/chatdb?sslmode=disable
+    depends_on:
+      - chat-db
