@@ -63,12 +63,28 @@ public class Account {
         lastSeenAt = Instant.now();
     }
 
-    public UUID getId()              { return id; }
-    public String getPhoneNumber()   { return phoneNumber; }
-    public String getPasswordHash()  { return passwordHash; }
-    public AccountStatus getStatus() { return status; }
-    public long getTokenVersion()    { return tokenVersion; }
-    public Instant getCreatedAt()    { return createdAt; }
-    public Instant getUpdatedAt()    { return updatedAt; }
-    public Instant getLastSeenAt()   { return lastSeenAt; }
+    public UUID getId() {
+        return id;
+    }
+    public String getPhoneNumber() {
+        return phoneNumber;
+    }
+    public String getPasswordHash() {
+        return passwordHash;
+    }
+    public AccountStatus getStatus() {
+        return status;
+    }
+    public long getTokenVersion() {
+        return tokenVersion;
+    }
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+    public Instant getUpdatedAt() {
+        return updatedAt;
+    }
+    public Instant getLastSeenAt() {
+        return lastSeenAt;
+    }
 }

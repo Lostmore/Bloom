@@ -79,27 +79,45 @@ public class RefreshSession {
 
 
     public boolean isExpired() {
-        return Instant.now().isAfter(expiresAt);
+        return !expiresAt.isAfter(Instant.now());
     }
 
     public void revoke() {
         this.revoked = true;
     }
 
-    /** Returns a copy with the given token hash (used after JWT generation). */
+    /** Assigns the hash after token generation. */
     public RefreshSession withTokenHash(String hash) {
         this.tokenHash = hash;
         return this;
     }
 
 
-    public UUID getId()           { return id; }
-    public UUID getAccountId()    { return accountId; }
-    public String getTokenHash()  { return tokenHash; }
-    public UUID getFamilyId()     { return familyId; }
-    public String getDeviceInfo() { return deviceInfo; }
-    public String getIpAddress()  { return ipAddress; }
-    public Instant getCreatedAt() { return createdAt; }
-    public Instant getExpiresAt() { return expiresAt; }
-    public boolean isRevoked()    { return revoked; }
+    public UUID getId() {
+        return id;
+    }
+    public UUID getAccountId() {
+        return accountId;
+    }
+    public String getTokenHash() {
+        return tokenHash;
+    }
+    public UUID getFamilyId() {
+        return familyId;
+    }
+    public String getDeviceInfo() {
+        return deviceInfo;
+    }
+    public String getIpAddress() {
+        return ipAddress;
+    }
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+    public Instant getExpiresAt() {
+        return expiresAt;
+    }
+    public boolean isRevoked() {
+        return revoked;
+    }
 }

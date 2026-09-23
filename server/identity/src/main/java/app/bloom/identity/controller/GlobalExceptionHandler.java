@@ -1,55 +1,43 @@
 package app.bloom.identity.controller;
 
-import app.bloom.identity.exception.*;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import app.bloom.identity.exception.AuthenticationException;
+import app.bloom.identity.exception.InvalidTokenException;
+import app.bloom.identity.exception.RegistrationException;
+import java.util.Map;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-
-import java.time.Instant;
-import java.util.Map;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
-
-    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
-
-    @ExceptionHandler(AuthenticationException.class)
-    public ResponseEntity<Map<String, Object>> handleAuth(AuthenticationException ex) {
-        return error(HttpStatus.UNAUTHORIZED, ex.getMessage());
+    @ExceptionHandler({AuthenticationException.class, InvalidTokenException.class})
+    public ResponseEntity<?> authentication(RuntimeException exception) {
+        return error(HttpStatus.UNAUTHORIZED, "Authentication failed");
     }
 
-    @ExceptionHandler(RegistrationException.class)
-    public ResponseEntity<Map<String, Object>> handleReg(RegistrationException ex) {
-        return error(HttpStatus.BAD_REQUEST, ex.getMessage());
+    @ExceptionHandler({RegistrationException.class, DataIntegrityViolationException.class})
+    public ResponseEntity<?> registration(RuntimeException exception) {
+        return error(HttpStatus.BAD_REQUEST, "Request cannot be completed");
     }
 
-    @ExceptionHandler(InvalidTokenException.class)
-    public ResponseEntity<Map<String, Object>> handleToken(InvalidTokenException ex) {
-        return error(HttpStatus.UNAUTHORIZED, ex.getMessage());
+    @ExceptionHandler({MethodArgumentNotValidException.class, HttpMessageNotReadableException.class, MethodArgumentTypeMismatchException.class})
+    public ResponseEntity<?> invalid(Exception exception) {
+        return error(HttpStatus.BAD_REQUEST, "Invalid request");
     }
 
-    @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<Map<String, Object>> handleValidation(MethodArgumentNotValidException ex) {
-        var sb = new StringBuilder();
-        ex.getBindingResult().getFieldErrors().forEach(e -> sb.append(e.getField()).append(": ").append(e.getDefaultMessage()).append("; "));
-        return error(HttpStatus.BAD_REQUEST, sb.toString().trim());
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<?> status(ResponseStatusException exception) {
+        return ResponseEntity.status(exception.getStatusCode())
+                .body(Map.of("status", exception.getStatusCode().value(), "message", "Request rejected"));
     }
 
-    @ExceptionHandler(Exception.class)
-    public ResponseEntity<Map<String, Object>> handleGeneral(Exception ex) {
-        log.error("Unhandled exception", ex);
-        return error(HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred");
-    }
-
-    private ResponseEntity<Map<String, Object>> error(HttpStatus status, String message) {
-        return ResponseEntity.status(status).body(Map.of(
-                "timestamp", Instant.now().toString(),
-                "status", status.value(),
-                "error", status.getReasonPhrase(),
-                "message", message));
+    private ResponseEntity<?> error(HttpStatus status, String message) {
+        return ResponseEntity.status(status).body(Map.of("status", status.value(), "message", message));
     }
 }

@@ -5,7 +5,7 @@ spring:
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:bloom_identity}
     username: ${DB_USER:bloom_identity}
-    password: ${DB_PASSWORD:bloom_identity}
+    password: ${DB_PASSWORD}
     hikari:
       maximum-pool-size: ${DB_POOL_SIZE:10}
       connection-timeout: 5000
@@ -27,8 +27,9 @@ server:
   port: ${SERVER_PORT:8081}
 
 bloom:
+  internal-token: ${INTERNAL_API_TOKEN}
   jwt:
-    secret: ${JWT_SECRET:bloom-dev-secret-change-me-in-production-min-32-chars!!}
+    secret: ${JWT_SECRET}
     access-token-ttl: ${JWT_ACCESS_TTL:15m}
     refresh-token-ttl: ${JWT_REFRESH_TTL:30d}
 
