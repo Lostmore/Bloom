@@ -1,6 +1,14 @@
+CREATE TABLE IF NOT EXISTS rooms (
+    id SERIAL PRIMARY KEY,
+    user1_id INTEGER NOT NULL,
+    user2_id INTEGER NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS messages (
     id SERIAL PRIMARY KEY,
-    room_id INTEGER NOT NULL,
+    room_id INTEGER NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
     sender_id INTEGER NOT NULL,
     content TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT NOW()

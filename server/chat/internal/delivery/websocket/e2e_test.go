@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"testing"
 	"time"
 
@@ -54,17 +55,21 @@ func setupTestDB(t *testing.T) (*pgxpool.Pool, func()) {
 func TestE2EChat(t *testing.T) {
 	pool, teardown := setupTestDB(t)
 	defer teardown()
-	repo := postgres.NewMessageRepo(pool)
-	svc := service.NewMessageService(repo)
+	msgrepo := postgres.NewMessageRepo(pool)
+	roomrepo := postgres.NewRoomRepo(pool)
+	svc := service.NewMessageService(msgrepo, roomrepo)
 	hub := NewHub(svc)
 	go hub.Run()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ServeWS(hub, w, r)
 	}))
 	defer srv.Close()
+	ctx := context.Background()
+	room, err := svc.CreateRoom(ctx, 10, 11)
+	require.NoError(t, err)
 	u, _ := url.Parse(srv.URL)
 	u.Scheme = "ws"
-	u.RawQuery = "room_id=1&user_id=10"
+	u.RawQuery = "room_id=" + strconv.FormatInt(room.ID, 10) + "&user_id=10"
 	ws, _, err := gorilla.DefaultDialer.Dial(u.String(), nil)
 	require.NoError(t, err)
 	defer ws.Close()
@@ -77,12 +82,11 @@ func TestE2EChat(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, msgContent, recMsg.Content)
 	require.Equal(t, int64(10), recMsg.SenderID)
-	ctx := context.Background()
-	history, err := svc.GetRoomHistory(ctx, 1)
+	history, err := svc.GetRoomHistory(ctx, room.ID)
 	require.NoError(t, err)
 	require.Len(t, history, 1)
 	require.Equal(t, msgContent, history[0].Content)
-	u.RawQuery = "room_id=1&user_id=11"
+	u.RawQuery = "room_id=" + strconv.FormatInt(room.ID, 10) + "&user_id=11"
 	ws2, _, err := gorilla.DefaultDialer.Dial(u.String(), nil)
 	require.NoError(t, err)
 	defer ws2.Close()

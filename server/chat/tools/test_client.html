@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Bloom Multi-Chat Test</title>
+    <style>
+        body { font-family: sans-serif; display: flex; gap: 20px; padding: 20px; }
+        .sidebar { width: 300px; border-right: 1px solid #ccc; padding-right: 20px; }
+        .main { flex-grow: 1; }
+        .chat-list { list-style: none; padding: 0; }
+        .chat-item { padding: 10px; border: 1px solid #ddd; margin-bottom: 5px; cursor: pointer; border-radius: 5px; }
+        .chat-item:hover { background: #f0f0f0; }
+        #chat { height: 400px; border: 1px solid #ccc; border-radius: 5px; overflow-y: scroll; padding: 10px; margin-bottom: 10px; background: #f9f9f9; }
+        .message { margin-bottom: 5px; padding: 5px; background: #e1f5fe; border-radius: 4px; width: fit-content; }
+        .system { color: gray; font-size: 0.9em; font-style: italic; }
+        .controls { margin-bottom: 15px; }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <h3>Управление</h3>
+        <div class="controls">
+            <label>Мой User ID:</label>
+            <input type="number" id="myUserId" value="1" style="width: 100%;">
+        </div>
+        
+        <div class="controls" style="border: 1px solid #eee; padding: 10px;">
+            <h4>Создать новый чат</h4>
+            <label>С кем (User ID):</label>
+            <input type="number" id="targetUserId" value="2" style="width: 100%;">
+            <button onclick="createRoom()" style="margin-top: 5px; width: 100%;">Создать (POST)</button>
+        </div>
+
+        <button onclick="loadRooms()" style="width: 100%; padding: 10px; background: #dcedc8; border: none; cursor:pointer;">📥 Загрузить мои чаты</button>
+        
+        <ul id="roomsList" class="chat-list"></ul>
+    </div>
+
+    <div class="main">
+        <h2 id="chatTitle">Выберите чат</h2>
+        <div id="chat"></div>
+        <input type="text" id="msg" placeholder="Напишите сообщение..." disabled style="width: calc(100% - 100px);">
+        <button id="sendBtn" onclick="sendMessage()" disabled>Отправить</button>
+    </div>
+
+    <script>
+        let ws;
+        let currentRoomId = null;
+        
+        // ВАЖНО: Убедись, что эти порты совпадают с твоим main.go
+        const apiUrl = "http://localhost:8091/api/rooms";
+        const wsUrl = "ws://localhost:8091/ws";
+
+        // 1. Создание комнаты (POST HTTP)
+        async function createRoom() {
+            const myId = parseInt(document.getElementById("myUserId").value);
+            const targetId = parseInt(document.getElementById("targetUserId").value);
+            
+            try {
+                const res = await fetch(apiUrl, {
+                    method: 'POST',
+                    body: JSON.stringify({ user1_id: myId, user2_id: targetId })
+                });
+                if (res.ok) {
+                    alert("Комната создана!");
+                    loadRooms(); // обновляем список
+                } else {
+                    alert("Ошибка создания: " + await res.text());
+                }
+            } catch (e) {
+                alert("Сервер недоступен или блокирует CORS: " + e);
+            }
+        }
+
+        // 2. Получение списка комнат (GET HTTP)
+        async function loadRooms() {
+            const myId = document.getElementById("myUserId").value;
+            try {
+                const res = await fetch(apiUrl + "?user_id=" + myId);
+                if (res.ok) {
+                    const rooms = await res.json();
+                    const list = document.getElementById("roomsList");
+                    list.innerHTML = "";
+                    if (!rooms || rooms.length === 0) {
+                        list.innerHTML = "<li>Нет чатов</li>";
+                        return;
+                    }
+                    rooms.forEach(room => {
+                        const li = document.createElement("li");
+                        li.className = "chat-item";
+                        // Если я User1, то собеседник User2, и наоборот
+                        const otherUserId = room.user1_id == myId ? room.user2_id : room.user1_id;
+                        li.innerText = `Чат с User ${otherUserId} (Room ID: ${room.id})`;
+                        li.onclick = () => connectToRoom(room.id, otherUserId);
+                        list.appendChild(li);
+                    });
+                } else {
+                    alert("Ошибка: " + await res.text());
+                }
+            } catch (e) {
+                alert("Ошибка загрузки комнат: " + e);
+            }
+        }
+
+        // 3. Подключение к сокету
+        function connectToRoom(roomId, otherUserId) {
+            if (ws) { ws.close(); } // закрываем старый сокет
+            
+            const myId = document.getElementById("myUserId").value;
+            document.getElementById("chatTitle").innerText = `Чат с User ${otherUserId}`;
+            document.getElementById("chat").innerHTML = ""; // очищаем окно
+            
+            ws = new WebSocket(`${wsUrl}?room_id=${roomId}&user_id=${myId}`);
+            
+            ws.onopen = function() {
+                appendMessage("Подключено к комнате " + roomId, "system");
+                document.getElementById("msg").disabled = false;
+                document.getElementById("sendBtn").disabled = false;
+            };
+            
+            ws.onmessage = function(event) {
+                const message = JSON.parse(event.data);
+                appendMessage("User " + message.sender_id + ": " + message.content, "message");
+            };
+            
+            ws.onclose = function() {
+                appendMessage("Отключено.", "system");
+                document.getElementById("msg").disabled = true;
+                document.getElementById("sendBtn").disabled = true;
+            };
+        }
+
+        function sendMessage() {
+            const input = document.getElementById("msg");
+            if (ws && input.value) {
+                ws.send(JSON.stringify({ content: input.value }));
+                input.value = "";
+            }
+        }
+
+        function appendMessage(text, className) {
+            const chat = document.getElementById("chat");
+            const div = document.createElement("div");
+            div.textContent = text;
+            div.className = className;
+            chat.appendChild(div);
+            chat.scrollTop = chat.scrollHeight;
+        }
+    </script>
+</body>
+</html>
