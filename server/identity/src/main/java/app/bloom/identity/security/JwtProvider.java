@@ -3,33 +3,36 @@ package app.bloom.identity.security;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.security.Keys;
-import java.nio.charset.StandardCharsets;
+import java.security.KeyFactory;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.Date;
 import java.util.UUID;
-import javax.crypto.SecretKey;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 @Component
 public class JwtProvider {
-    private final SecretKey key;
+    private final PrivateKey privateKey;
+    private final PublicKey publicKey;
     private final Duration accessTtl;
     private final Duration refreshTtl;
 
-    public JwtProvider(@Value("${bloom.jwt.secret}") String secret,
-            @Value("${bloom.jwt.access-token-ttl}") Duration accessTtl,
-            @Value("${bloom.jwt.refresh-token-ttl}") Duration refreshTtl) {
-        if (secret.isBlank() || secret.getBytes(StandardCharsets.UTF_8).length < 32) {
-            throw new IllegalArgumentException("JWT_SECRET must contain at least 32 bytes");
-        }
+    public JwtProvider(@Value("${bloom.jwt.private-key}") String privateKeyPem,
+                       @Value("${bloom.jwt.public-key}") String publicKeyPem,
+                       @Value("${bloom.jwt.access-token-ttl}") Duration accessTtl,
+                       @Value("${bloom.jwt.refresh-token-ttl}") Duration refreshTtl) {
         if (accessTtl.isNegative() || accessTtl.isZero() || accessTtl.compareTo(Duration.ofMinutes(15)) > 0
                 || refreshTtl.isNegative() || refreshTtl.isZero()) {
             throw new IllegalArgumentException("Invalid token lifetimes");
         }
-        this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        this.privateKey = loadPrivateKey(privateKeyPem);
+        this.publicKey = loadPublicKey(publicKeyPem);
         this.accessTtl = accessTtl;
         this.refreshTtl = refreshTtl;
     }
@@ -45,7 +48,7 @@ public class JwtProvider {
                 .claim("type", "access")
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plus(accessTtl)))
-                .signWith(key, Jwts.SIG.HS256)
+                .signWith(privateKey, Jwts.SIG.RS256)
                 .compact();
     }
 
@@ -60,16 +63,16 @@ public class JwtProvider {
                 .claim("type", "refresh")
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plus(refreshTtl)))
-                .signWith(key, Jwts.SIG.HS256)
+                .signWith(privateKey, Jwts.SIG.RS256)
                 .compact();
     }
 
     public Claims parse(String token) {
         try {
-            var signed = Jwts.parser().verifyWith(key)
+            var signed = Jwts.parser().verifyWith(publicKey)
                     .requireIssuer("bloom-identity").requireAudience("bloom-api")
                     .build().parseSignedClaims(token);
-            if (!"HS256".equals(signed.getHeader().getAlgorithm())) {
+            if (!"RS256".equals(signed.getHeader().getAlgorithm())) {
                 return null;
             }
             Claims claims = signed.getPayload();
@@ -108,5 +111,37 @@ public class JwtProvider {
 
     public long getAccessTtlSeconds() {
         return accessTtl.toSeconds();
+    }
+
+    public String getPublicKeyPem() {
+        return "-----BEGIN PUBLIC KEY-----\n"
+                + Base64.getMimeEncoder(64, "\n".getBytes()).encodeToString(publicKey.getEncoded())
+                + "\n-----END PUBLIC KEY-----";
+    }
+
+    private static PrivateKey loadPrivateKey(String pem) {
+        try {
+            String base64 = pem
+                    .replace("-----BEGIN PRIVATE KEY-----", "")
+                    .replace("-----END PRIVATE KEY-----", "")
+                    .replaceAll("\\s+", "");
+            byte[] decoded = Base64.getDecoder().decode(base64);
+            return KeyFactory.getInstance("RSA").generatePrivate(new PKCS8EncodedKeySpec(decoded));
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Invalid RSA private key", e);
+        }
+    }
+
+    private static PublicKey loadPublicKey(String pem) {
+        try {
+            String base64 = pem
+                    .replace("-----BEGIN PUBLIC KEY-----", "")
+                    .replace("-----END PUBLIC KEY-----", "")
+                    .replaceAll("\\s+", "");
+            byte[] decoded = Base64.getDecoder().decode(base64);
+            return KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(decoded));
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Invalid RSA public key", e);
+        }
     }
 }

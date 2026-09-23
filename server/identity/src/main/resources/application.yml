@@ -29,7 +29,8 @@ server:
 bloom:
   internal-token: ${INTERNAL_API_TOKEN}
   jwt:
-    secret: ${JWT_SECRET}
+    private-key: ${JWT_PRIVATE_KEY}
+    public-key: ${JWT_PUBLIC_KEY}
     access-token-ttl: ${JWT_ACCESS_TTL:15m}
     refresh-token-ttl: ${JWT_REFRESH_TTL:30d}
 
