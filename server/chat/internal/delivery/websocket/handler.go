@@ -1,6 +1,7 @@
 package websocket
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"strconv"
@@ -36,6 +37,20 @@ func ServeWS(hub *Hub, w http.ResponseWriter, r *http.Request) {
 		log.Println("Ошибка парсинга user_id", err)
 		conn.Close()
 		return
+	}
+	msgs, err := hub.Service.GetRoomHistory(context.Background(), roomID)
+	if err != nil {
+		log.Println("Ошибка получения истории сообщений", err)
+		conn.Close()
+		return
+	}
+	for _, msg := range msgs {
+		err := conn.WriteJSON(msg)
+		if err != nil {
+			log.Println("Ошибка отправки истории сообщений", err)
+			conn.Close()
+			return
+		}
 	}
 	client := &Client{
 		Hub:    hub,

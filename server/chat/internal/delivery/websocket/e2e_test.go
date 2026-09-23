@@ -82,4 +82,13 @@ func TestE2EChat(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, history, 1)
 	require.Equal(t, msgContent, history[0].Content)
+	u.RawQuery = "room_id=1&user_id=11"
+	ws2, _, err := gorilla.DefaultDialer.Dial(u.String(), nil)
+	require.NoError(t, err)
+	defer ws2.Close()
+	var recMsg2 domain.Message
+	err = ws2.ReadJSON(&recMsg2)
+	require.NoError(t, err)
+	require.Equal(t, msgContent, recMsg2.Content)
+	require.Equal(t, int64(10), recMsg2.SenderID)
 }
