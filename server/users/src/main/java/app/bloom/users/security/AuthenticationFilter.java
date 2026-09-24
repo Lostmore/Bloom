@@ -38,17 +38,41 @@ public class AuthenticationFilter extends OncePerRequestFilter {
             return;
         }
         try {
-
+            String path = request.getRequestURI().substring(request.getContextPath().length());
+            if (path.startsWith("/internal/") || path.equals("/actuator/prometheus")) {
+                String supplied = request.getHeader("X-Internal-Token");
+                if (supplied == null || supplied.length() > 1024
+                        || !MessageDigest.isEqual(serviceToken, supplied.getBytes(StandardCharsets.UTF_8))) {
+                    response.sendError(401);
+                    return;
+                }
+                authenticate("service", "ROLE_SERVICE");
+            } else if (!path.startsWith("/actuator/health")) {
+                String bearer = request.getHeader("Authorization");
+                if (bearer == null || !bearer.startsWith("Bearer ") || bearer.length() > 4103) {
+                    response.sendError(401);
+                    return;
+                }
+                authenticate(identity.authenticate(bearer.substring(7)), "ROLE_USER");
+            }
         } catch (ResponseStatusException exception) {
             response.sendError(exception.getStatusCode().value());
             return;
         }
         if (List.of("POST", "PUT", "PATCH").contains(request.getMethod())) {
-            byte[] body = request.getInputStream().readAllBytes();
-
+            byte[] body = request.getInputStream().readNBytes(16385);
+            if (body.length > 16384) {
+                response.sendError(413);
+                return;
+            }
             chain.doFilter(new BoundedJsonRequest(request, body), response);
         } else {
             chain.doFilter(request, response);
         }
+    }
+
+    private void authenticate(Object principal, String role) {
+        SecurityContextHolder.getContext().
+            setAuthentication(new UsernamePasswordAuthenticationToken(principal, null, List.of(new SimpleGrantedAuthority(role))));
     }
 }
