@@ -56,6 +56,9 @@ public class ProfileService {
     @Transactional
     public Profile patch(UUID id, UpdateProfileRequest request) {
         Profile current = lock(id);
+        if (request.version() != current.version()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Profile changed; reload before updating");
+        }
         profiles.update(new Profile(id, request.nickname() == null ? current.nickname() : text(request.nickname()),
                 current.birthDate(), request.gender() == null ? current.gender() : request.gender(),
                 request.bio() == null ? current.bio() : request.bio().strip(),

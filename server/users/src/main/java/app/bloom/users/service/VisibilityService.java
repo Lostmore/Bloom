@@ -97,7 +97,13 @@ public class VisibilityService {
         if (from == null || to == null) {
             return null;
         }
-        return null;
-       //todo: latitude / longitude -  calc through toRadians
+        double latitude = Math.toRadians(to.latitude() - from.latitude());
+        double longitude = Math.toRadians(to.longitude() - from.longitude());
+        double a = Math.pow(Math.sin(latitude / 2), 2)
+                + Math.cos(Math.toRadians(from.latitude())) * Math.cos(Math.toRadians(to.latitude()))
+                * Math.pow(Math.sin(longitude / 2), 2);
+        double km = 12742 * Math.asin(Math.sqrt(Math.min(1, a)));
+        // Only coarse 5 km buckets leave the service; never precise GPS.
+        return Math.max(5, (int) Math.ceil(km / 5) * 5);
     }
 }

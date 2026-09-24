@@ -54,6 +54,8 @@ public class SafetyService {
 
     @Transactional
     public UUID report(UUID reporter, CreateReportRequest request) {
+        requireDifferent(reporter, request.targetId());
+        lockPair(reporter, request.targetId());
         if (safety.recentReports(reporter) >= 10) {
             throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "CreateReportRequest limit reached");
         }
