@@ -17,6 +17,8 @@ import org.springframework.web.server.ResponseStatusException;
  */
 @Component
 public class IdentityClient {
+
+    // TODO: RSA56 KEY PUBLIC ? DONT HAVE SPAM HAMMER HTTP REST API request.....
     private final RestClient http;
 
     public IdentityClient(RestClient.Builder builder,
