@@ -49,6 +49,12 @@
         // ВАЖНО: Убедись, что эти порты совпадают с твоим main.go
         const apiUrl = "http://localhost:8091/api/rooms";
         const wsUrl = "ws://localhost:8091/ws";
+        // Получение тестового токена
+        async function getToken(userId) {
+            const res = await fetch(`http://localhost:8091/api/test/token?user_id=${userId}`);
+            if (!res.ok) throw new Error("Failed to fetch token");
+            return await res.text();
+        }
 
         // 1. Создание комнаты (POST HTTP)
         async function createRoom() {
@@ -56,9 +62,13 @@
             const targetId = parseInt(document.getElementById("targetUserId").value);
             
             try {
+                const token = await getToken(myId);
                 const res = await fetch(apiUrl, {
                     method: 'POST',
-                    body: JSON.stringify({ user1_id: myId, user2_id: targetId })
+                    headers: {
+                        'Authorization': 'Bearer ' + token
+                    },
+                    body: JSON.stringify({ user2_id: targetId })
                 });
                 if (res.ok) {
                     alert("Комната создана!");
@@ -75,7 +85,12 @@
         async function loadRooms() {
             const myId = document.getElementById("myUserId").value;
             try {
-                const res = await fetch(apiUrl + "?user_id=" + myId);
+                const token = await getToken(myId);
+                const res = await fetch(apiUrl, {
+                    headers: {
+                        'Authorization': 'Bearer ' + token
+                    }
+                });
                 if (res.ok) {
                     const rooms = await res.json();
                     const list = document.getElementById("roomsList");
@@ -102,16 +117,18 @@
         }
 
         // 3. Подключение к сокету
-        function connectToRoom(roomId, otherUserId) {
+        async function connectToRoom(roomId, otherUserId) {
             if (ws) { ws.close(); } // закрываем старый сокет
             
             const myId = document.getElementById("myUserId").value;
             document.getElementById("chatTitle").innerText = `Чат с User ${otherUserId}`;
             document.getElementById("chat").innerHTML = ""; // очищаем окно
             
-            ws = new WebSocket(`${wsUrl}?room_id=${roomId}&user_id=${myId}`);
-            
-            ws.onopen = function() {
+            try {
+                const token = await getToken(myId);
+                ws = new WebSocket(`${wsUrl}?room_id=${roomId}&token=${token}`);
+                
+                ws.onopen = function() {
                 appendMessage("Подключено к комнате " + roomId, "system");
                 document.getElementById("msg").disabled = false;
                 document.getElementById("sendBtn").disabled = false;
@@ -127,6 +144,9 @@
                 document.getElementById("msg").disabled = true;
                 document.getElementById("sendBtn").disabled = true;
             };
+            } catch (e) {
+                alert("Ошибка подключения к чату: " + e);
+            }
         }
 
         function sendMessage() {

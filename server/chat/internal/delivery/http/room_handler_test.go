@@ -44,14 +44,30 @@ func (m *MockRoomRepo) CreateRoom(ctx context.Context, user1ID, user2ID int64) (
 func (m *MockRoomRepo) GetByUser(ctx context.Context, userID int64) ([]domain.Room, error) {
 	return nil, nil
 }
+
+func (m *MockRoomRepo) GetRoomByUsers(ctx context.Context, user1ID, user2ID int64) (*domain.Room, error) {
+	return nil, nil // not found, creates a new one
+}
+
+func (m *MockRoomRepo) GetRoomByID(ctx context.Context, roomID int64) (*domain.Room, error) {
+	return &domain.Room{ID: 1, User1ID: 1, User2ID: 2}, nil
+}
 func TestRoomHandler_CreateRoom(t *testing.T) {
 	mockMsgRepo := &MockMessageRepo{}
 	mochRoomRepo := &MockRoomRepo{}
 	svc := service.NewMessageService(mockMsgRepo, mochRoomRepo)
-	req, _ := http.NewRequest(http.MethodPost, "/api/rooms", bytes.NewBufferString(`{"user1_id": 1, "user2_id": 2}`))
+
+	// Create request with body containing only user2_id
+	req, _ := http.NewRequest(http.MethodPost, "/api/rooms", bytes.NewBufferString(`{"user2_id": 2}`))
+
+	// Inject user_id into context as AuthMiddleware would do
+	ctx := context.WithValue(req.Context(), UserIDKey, int64(1))
+	req = req.WithContext(ctx)
+
 	rr := httptest.NewRecorder()
 	handler := NewRoomHandler(svc)
 	handler.CreateRoom(rr, req)
+
 	var createdRoom domain.Room
 	err := json.NewDecoder(rr.Body).Decode(&createdRoom)
 	require.NoError(t, err)
@@ -66,10 +82,17 @@ func TestRoomHandler_GetUserRooms(t *testing.T) {
 	mockMsgRepo := &MockMessageRepo{}
 	mochRoomRepo := &MockRoomRepo{}
 	svc := service.NewMessageService(mockMsgRepo, mochRoomRepo)
+
+	req, _ := http.NewRequest(http.MethodGet, "/api/rooms", nil)
+
+	// Inject user_id into context
+	ctx := context.WithValue(req.Context(), UserIDKey, int64(1))
+	req = req.WithContext(ctx)
+
 	rr := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/api/rooms?user_id=1", nil)
 	handler := NewRoomHandler(svc)
 	handler.GetUserRooms(rr, req)
+
 	var rooms []domain.Room
 	err := json.NewDecoder(rr.Body).Decode(&rooms)
 	require.NoError(t, err)

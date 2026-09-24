@@ -47,3 +47,28 @@ func (r *RoomRepo) GetByUser(ctx context.Context, userID int64) ([]domain.Room, 
 	}
 	return rooms, nil
 }
+
+// GetRoomByID возвращает чат-комнату по её идентификатору.
+// Используется для проверки существования комнаты и проверки прав доступа.
+func (r *RoomRepo) GetRoomByID(ctx context.Context, roomID int64) (*domain.Room, error) {
+	var room domain.Room
+	err := r.pool.QueryRow(ctx, "SELECT * FROM rooms WHERE id=$1", roomID).Scan(&room.ID, &room.User1ID, &room.User2ID, &room.IsActive, &room.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &room, nil
+}
+
+// GetRoomByUsers ищет чат-комнату между двумя пользователями (в любом порядке).
+// Возвращает nil, nil если комната не найдена, чтобы избежать дублирования чатов.
+func (r *RoomRepo) GetRoomByUsers(ctx context.Context, user1ID, user2ID int64) (*domain.Room, error) {
+	var room domain.Room
+	err := r.pool.QueryRow(ctx, "SELECT * FROM rooms WHERE (user1_id= $1 AND user2_id=$2) OR (user1_id=$2 AND user2_id=$1)", user1ID, user2ID).Scan(&room.ID, &room.User1ID, &room.User2ID, &room.IsActive, &room.CreatedAt)
+	if err != nil {
+		if err.Error() == "no rows in result set" {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &room, nil
+}

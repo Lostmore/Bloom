@@ -32,12 +32,29 @@ func (s *MessageService) SendMessage(ctx context.Context, msg *domain.Message) e
 }
 
 // GetRoomHistory извлекает историю сообщений для указанной комнаты.
-func (s *MessageService) GetRoomHistory(ctx context.Context, roomID int64) ([]*domain.Message, error) {
+func (s *MessageService) GetRoomHistory(ctx context.Context, roomID, userID int64) ([]*domain.Message, error) {
+	room, err := s.roomRepo.GetRoomByID(ctx, roomID)
+	if err != nil || room == nil {
+		return nil, errors.New("room not found")
+	}
+	if room.User1ID != userID && room.User2ID != userID {
+		return nil, errors.New("access denied: user does not belong to this room")
+	}
 	return s.msgRepo.GetByRoomID(ctx, roomID)
 }
 
 // CreateRoom создает новый чат между пользователями.
 func (s *MessageService) CreateRoom(ctx context.Context, user1ID, user2ID int64) (*domain.Room, error) {
+	if user1ID == user2ID {
+		return nil, errors.New("cannot create chat with yourself")
+	}
+	existingRoom, err := s.roomRepo.GetRoomByUsers(ctx, user1ID, user2ID)
+	if err != nil {
+		return nil, err
+	}
+	if existingRoom != nil {
+		return existingRoom, nil
+	}
 	return s.roomRepo.CreateRoom(ctx, user1ID, user2ID)
 }
 
