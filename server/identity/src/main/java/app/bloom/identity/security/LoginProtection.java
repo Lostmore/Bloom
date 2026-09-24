@@ -25,11 +25,12 @@ public class LoginProtection {
                 INSERT INTO auth_attempts (key_hash, attempts, window_start, next_attempt_at)
                 VALUES (?, 0, now(), now()) ON CONFLICT DO NOTHING
                 """).param(key).update();
-        var row = jdbc.sql("SELECT * FROM auth_attempts WHERE key_hash = ? FOR UPDATE")
+        var row = jdbc.sql("SELECT *, now() AS observed_at FROM auth_attempts WHERE key_hash = ? FOR UPDATE")
                 .param(key).query((result, index) -> new Attempt(
                         result.getInt("attempts"), result.getTimestamp("window_start").toInstant(),
-                        result.getTimestamp("next_attempt_at").toInstant())).single();
-        Instant now = Instant.now();
+                        result.getTimestamp("next_attempt_at").toInstant(),
+                        result.getTimestamp("observed_at").toInstant())).single();
+        Instant now = row.observedAt();
         boolean reset = !row.windowStart().plus(window).isAfter(now);
         int attempts = reset ? 0 : row.attempts();
         if (!reset && (attempts >= limit || row.nextAttempt().isAfter(now))) {
@@ -53,6 +54,11 @@ public class LoginProtection {
                 .param(TokenHasher.sha256("login:" + phone)).update();
     }
 
-    private record Attempt(int attempts, Instant windowStart, Instant nextAttempt) {
+    private record Attempt(
+            int attempts,
+            Instant windowStart,
+            Instant nextAttempt,
+            Instant observedAt
+    ) {
     }
 }
