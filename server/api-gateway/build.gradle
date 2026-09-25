@@ -1,4 +1,13 @@
 dependencies {
     implementation platform('org.springframework.cloud:spring-cloud-dependencies:2025.0.1')
     implementation 'org.springframework.cloud:spring-cloud-starter-gateway-server-webflux'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.webjars:swagger-ui:5.32.15'
+}
+
+tasks.named('processResources') {
+    from(rootProject.file('../contracts')) {
+        include '*-openapi.json'
+        into 'openapi'
+    }
 }
