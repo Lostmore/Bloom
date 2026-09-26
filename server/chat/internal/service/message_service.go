@@ -21,7 +21,7 @@ func NewMessageService(msgRepo domain.MessageRepository, roomRepo domain.RoomRep
 
 // SendMessage отправляет новое сообщение в чат, проверяя его содержимое на пустоту.
 func (s *MessageService) SendMessage(ctx context.Context, msg *domain.Message) error {
-	if strings.TrimSpace(msg.Content) == "" {
+	if strings.TrimSpace(msg.Content) == "" && len(msg.Attachments) == 0 {
 		return errors.New("message cannot be empty")
 	}
 	err := s.msgRepo.Save(ctx, msg)

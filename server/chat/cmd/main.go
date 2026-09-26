@@ -10,11 +10,13 @@ import (
 	"strconv"
 	"time"
 
+	"bloom.local/chat/internal/broker/kafka"
 	httpDelivery "bloom.local/chat/internal/delivery/http"
 	"bloom.local/chat/internal/delivery/websocket"
 	"bloom.local/chat/internal/pkg/auth"
 	"bloom.local/chat/internal/repository/postgres"
 	"bloom.local/chat/internal/service"
+	"bloom.local/chat/internal/worker"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
@@ -59,6 +61,15 @@ func main() {
 	log.Println("Миграции успешно применены!")
 	msgRepo := postgres.NewMessageRepo(pool)
 	roomRepo := postgres.NewRoomRepo(pool)
+	kafkaBrokers := []string{os.Getenv("KAFKA_BROKER")}
+	if kafkaBrokers[0] == "" {
+		kafkaBrokers = []string{"localhost:9092"}
+	}
+	kafkaProducer := kafka.NewProducer(kafkaBrokers, "media.message_saved")
+	defer kafkaProducer.Close()
+	outboxRelay := worker.NewOutboxRelay(pool, kafkaProducer)
+	go outboxRelay.Run(ctx)
+	log.Println("Outbox Relay Worker запущен...")
 	svc := service.NewMessageService(msgRepo, roomRepo)
 	hub := websocket.NewHub(svc)
 	go hub.Run()

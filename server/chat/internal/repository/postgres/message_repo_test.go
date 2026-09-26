@@ -84,3 +84,34 @@ func TestMessageRepo_SaveAndGet(t *testing.T) {
 	require.Equal(t, msg.Content, messages[0].Content)
 	require.Equal(t, msg2.Content, messages[1].Content)
 }
+func TestMessageRepo_SaveWithAttachments(t *testing.T) {
+	pool, teardown := setupTestDB(t)
+	defer teardown()
+	repo := NewMessageRepo(pool)
+	ctx := context.Background()
+	_, err := pool.Exec(ctx, "INSERT INTO rooms (id, user1_id, user2_id) VALUES (1, 10, 20)")
+	require.NoError(t, err)
+	msg := &domain.Message{
+		RoomID:   1,
+		SenderID: 10,
+		Content:  "Look at these files!",
+		Attachments: []domain.Attachment{
+			{URL: "http://example.com/1.jpg", MediaType: "image/jpeg"},
+			{URL: "http://example.com/2.mp4", MediaType: "video/mp4"},
+		},
+	}
+	err = repo.Save(ctx, msg)
+	require.NoError(t, err)
+	require.NotZero(t, msg.ID)
+	testMsg, err := repo.GetByRoomID(ctx, msg.RoomID)
+	require.NoError(t, err)
+	require.Len(t, testMsg, 1)
+	require.Equal(t, msg.Content, testMsg[0].Content)
+	require.NoError(t, err)
+	require.Equal(t, "http://example.com/1.jpg", testMsg[0].Attachments[0].URL)
+	require.Equal(t, "video/mp4", testMsg[0].Attachments[1].MediaType)
+	var count int
+	err = pool.QueryRow(ctx, "SELECT count(*) FROM outbox_events").Scan(&count)
+	require.NoError(t, err)
+	require.Equal(t, 1, count)
+}
