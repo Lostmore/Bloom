@@ -3,14 +3,12 @@ package http
 import (
 	"encoding/json"
 	"net/http"
-	"strconv"
 
 	"bloom.local/chat/internal/service"
 )
 
 // CreateRoomRequest - структура для входящих данных при создании комнаты.
 type CreateRoomRequest struct {
-	User1ID int64 `json:"user1_id"`
 	User2ID int64 `json:"user2_id"`
 }
 
@@ -31,11 +29,16 @@ func (h *RoomHandler) CreateRoom(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
-	if req.User1ID <= 0 || req.User2ID <= 0 {
-		http.Error(w, "Invalid user IDs", http.StatusBadRequest)
+	userID, ok := r.Context().Value(UserIDKey).(int64)
+	if !ok {
+		http.Error(w, "Authorization token invalid", http.StatusUnauthorized)
 		return
 	}
-	room, err := h.Service.CreateRoom(r.Context(), req.User1ID, req.User2ID)
+	if req.User2ID <= 0 {
+		http.Error(w, "Invalid user ID", http.StatusBadRequest)
+		return
+	}
+	room, err := h.Service.CreateRoom(r.Context(), userID, req.User2ID)
 	if err != nil {
 		http.Error(w, "Failed to create room", http.StatusInternalServerError)
 		return
@@ -48,11 +51,9 @@ func (h *RoomHandler) CreateRoom(w http.ResponseWriter, r *http.Request) {
 
 // Обработчик для POST /api/rooms?user_id
 func (h *RoomHandler) GetUserRooms(w http.ResponseWriter, r *http.Request) {
-	r.ParseForm()
-	userIDStr := r.Form.Get("user_id")
-	userID, err := strconv.ParseInt(userIDStr, 10, 64)
-	if err != nil {
-		http.Error(w, "Invalid user ID", http.StatusBadRequest)
+	userID, ok := r.Context().Value(UserIDKey).(int64)
+	if !ok {
+		http.Error(w, "Authorization token invalid", http.StatusUnauthorized)
 		return
 	}
 	rooms, err := h.Service.GetUserRooms(r.Context(), userID)

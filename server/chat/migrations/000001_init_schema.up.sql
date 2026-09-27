@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS rooms (
     user1_id INTEGER NOT NULL,
     user2_id INTEGER NOT NULL,
     is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP DEFAULT NOW()
+    created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS messages (
@@ -11,5 +11,21 @@ CREATE TABLE IF NOT EXISTS messages (
     room_id INTEGER NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
     sender_id INTEGER NOT NULL,
     content TEXT NOT NULL,
-    created_at TIMESTAMP DEFAULT NOW()
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS message_attachments (
+    id SERIAL PRIMARY KEY,
+    message_id INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+    url TEXT NOT NULL,
+    media_type VARCHAR(50) NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS outbox_events (
+    id SERIAL PRIMARY KEY,
+    topic VARCHAR(255) NOT NULL,
+    payload JSONB NOT NULL,
+    processed BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
 );

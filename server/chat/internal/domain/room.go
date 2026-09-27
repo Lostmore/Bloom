@@ -16,6 +16,13 @@ type Room struct {
 
 // RoomRepository описывает методы для работы с чат-комнатами в базе данных.
 type RoomRepository interface {
+	// CreateRoom создаёт чат-комнату между двумя пользователями.
 	CreateRoom(ctx context.Context, user1ID, user2ID int64) (*Room, error)
+	// GetByUser возвращает все чат-комнаты, в которых участвует указанный пользователь.
 	GetByUser(ctx context.Context, userID int64) ([]Room, error)
+	// GetRoomByID возвращает чат-комнату по её уникальному идентификатору.
+	GetRoomByID(ctx context.Context, roomID int64) (*Room, error)
+	// GetRoomByUsers ищет существующую комнату между двумя пользователями.
+	// Возвращает nil, nil если комната не найдена.
+	GetRoomByUsers(ctx context.Context, user1ID, user2ID int64) (*Room, error)
 }
