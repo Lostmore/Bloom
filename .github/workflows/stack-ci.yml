@@ -26,8 +26,14 @@ jobs:
           python-version: '3.12'
       - run: python -m pip install PyYAML==6.0.2
       - name: Test configuration upgrades preserve credentials
-        run: python -m unittest discover -s infrastructure/tests
-      - run: python infrastructure/prepare-ci.py
+        run: |
+          if [ ! -f infrastructure/tests/test_prepare_config.py ]; then
+            echo "::error::Missing infrastructure/tests/test_prepare_config.py. Include this test file in the commit."
+            exit 1
+          fi
+          python -m unittest discover -s infrastructure/tests
+      - name: Generate disposable stack configuration
+        run: python infrastructure/prepare-ci.py
       - name: Validate and start the full stack
         run: |
           docker compose -f compose.yml -f .ci/compose.yml --profile stubs config --quiet
@@ -36,7 +42,17 @@ jobs:
         run: python infrastructure/smoke-test.py
       - name: Logs
         if: failure()
-        run: docker compose -f compose.yml -f .ci/compose.yml logs --tail 100
+        run: |
+          if [ -f .ci/compose.yml ]; then
+            docker compose -f compose.yml -f .ci/compose.yml logs --tail 100
+          else
+            echo "Stack configuration was not generated; inspect the first failed preparation step."
+          fi
       - name: Stop disposable stack
         if: always()
-        run: docker compose -f compose.yml -f .ci/compose.yml --profile stubs down --volumes
+        run: |
+          if [ -f .ci/compose.yml ]; then
+            docker compose -f compose.yml -f .ci/compose.yml --profile stubs down --volumes
+          else
+            echo "No generated stack configuration; nothing to stop."
+          fi
