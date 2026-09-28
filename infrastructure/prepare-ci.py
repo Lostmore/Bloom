@@ -1,5 +1,6 @@
 """Create disposable stack credentials/configuration for CI; never edit developer configs."""
 
+import argparse
 import secrets
 import subprocess
 from pathlib import Path
@@ -8,7 +9,17 @@ import yaml
 
 
 root = Path(__file__).resolve().parent.parent
-output = root / ".ci"
+parser = argparse.ArgumentParser(description="Generate isolated Bloom configuration.")
+parser.add_argument("--output", choices=(".ci", ".local", ".local-test"), default=".ci")
+parser.add_argument("--reuse", action="store_true", help="Preserve existing local credentials.")
+args = parser.parse_args()
+output = root / args.output
+if args.reuse and output.exists() and any(output.iterdir()):
+    required = ("identity.yml", "users.yml", "identity-private.pem", "compose.yml")
+    if not all((output / name).is_file() for name in required):
+        raise SystemExit("Incomplete local configuration. Restore its missing files; credentials were not changed.")
+    print("Existing local configuration preserved. No credentials were regenerated.")
+    raise SystemExit(0)
 output.mkdir(exist_ok=True)
 passwords = {name: secrets.token_hex(24) for name in ("admin", "identity", "users", "chat")}
 identity_token = secrets.token_hex(32)
@@ -40,7 +51,7 @@ for service in ("identity", "users"):
     destination = output / f"{service}.yml"
     destination.write_text(yaml.safe_dump(config, allow_unicode=True, sort_keys=False), encoding="utf-8")
     overrides["services"][service] = {
-        "volumes": [{"type": "bind", "source": str(destination), "target": "/app/config/application.yml", "read_only": True}]
+        "volumes": [{"type": "bind", "source": "./" + destination.relative_to(root).as_posix(), "target": "/app/config/application.yml", "read_only": True}]
     }
 
 overrides["services"]["postgres"] = {"environment": {
@@ -53,4 +64,4 @@ overrides["services"]["chat"] = {"environment": {
     "DATABASE_URL": f"postgres://bloom_chat:{passwords['chat']}@postgres:5432/bloom_chat?sslmode=disable"
 }}
 (output / "compose.yml").write_text(yaml.safe_dump(overrides, sort_keys=False), encoding="utf-8")
-print("Disposable stack configuration prepared in .ci (credentials not printed).")
+print(f"Stack configuration prepared in {args.output} (credentials not printed).")
