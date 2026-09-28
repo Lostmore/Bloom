@@ -5,6 +5,9 @@ server:
 spring:
   application:
     name: bloom-api-gateway
+  web:
+    resources:
+      add-mappings: false
   cloud:
     gateway:
       server:
@@ -41,6 +44,13 @@ spring:
               uri: ${CHAT_WS_URL:ws://localhost:8091}
               predicates:
                 - Path=/api/v1/ws
+            - id: chat-rooms
+              uri: ${CHAT_URL:http://localhost:8091}
+              predicates:
+                - Path=/api/v1/conversations
+                - Method=GET,POST
+              filters:
+                - SetPath=/api/rooms
             - id: chat
               uri: ${CHAT_URL:http://localhost:8091}
               predicates:
@@ -57,3 +67,18 @@ spring:
               uri: ${NOTIFICATIONS_URL:http://localhost:8094}
               predicates:
                 - Path=/api/v1/notifications/**
+
+bloom:
+  api-docs:
+    enabled: ${API_DOCS_ENABLED:true}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true

@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Bloom Users event v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "eventId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "type": {
+      "enum": [
+        "user.created",
+        "user.updated",
+        "user.deleted",
+        "user.blocked",
+        "user.unblocked",
+        "report.created"
+      ]
+    },
+    "userId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "targetId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "reportId": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
+    }
+  },
+  "required": [
+    "eventId",
+    "schemaVersion",
+    "type",
+    "userId",
+    "version",
+    "occurredAt",
+    "data"
+  ]
+}

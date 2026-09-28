@@ -27,7 +27,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     public JwtAuthenticationFilter(AccessValidator validator, LoginProtection protection,
             @Value("${bloom.internal-token}") String token) {
         if (token.length() < 32) {
-            throw new IllegalArgumentException("INTERNAL_API_TOKEN must contain at least 32 characters");
+            throw new IllegalArgumentException("Set bloom.internal-token in application.yml: at least 32 characters");
         }
         this.validator = validator;
         this.protection = protection;

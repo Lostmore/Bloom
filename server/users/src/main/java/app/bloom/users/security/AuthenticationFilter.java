@@ -24,7 +24,7 @@ public class AuthenticationFilter extends OncePerRequestFilter {
 
     public AuthenticationFilter(IdentityClient identity, @Value("${bloom.internal-token}") String token) {
         if (token.length() < 32) {
-            throw new IllegalArgumentException("USERS_INTERNAL_API_TOKEN must contain at least 32 characters");
+            throw new IllegalArgumentException("Set bloom.internal-token in application.yml: at least 32 characters");
         }
         this.identity = identity;
         serviceToken = token.getBytes(StandardCharsets.UTF_8);

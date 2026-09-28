@@ -1,0 +1,104 @@
+name: Users Service CI/CD
+
+on:
+  push:
+    branches: [develop, main]
+    paths:
+      - 'server/users/**'
+      - 'server/identity/**'
+      - 'server/api-gateway/**'
+      - 'server/build.gradle'
+      - 'server/settings.gradle'
+      - 'server/gradle/**'
+      - 'server/gradlew*'
+      - 'server/.dockerignore'
+      - 'contracts/users-*'
+      - '.github/workflows/users-ci.yml'
+  pull_request:
+    branches: [develop, main]
+    paths:
+      - 'server/users/**'
+      - 'server/identity/**'
+      - 'server/api-gateway/**'
+      - 'server/build.gradle'
+      - 'server/settings.gradle'
+      - 'server/gradle/**'
+      - 'server/gradlew*'
+      - 'server/.dockerignore'
+      - 'contracts/users-*'
+      - '.github/workflows/users-ci.yml'
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish the tested Users image to GHCR
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: users-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: gradle
+      - run: chmod +x server/gradlew
+      - name: Build and test Users, Identity and Gateway
+        working-directory: server
+        run: ./gradlew :users:build :identity:build :api-gateway:build --no-daemon
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: users-test-reports
+          path: |
+            server/users/build/reports/tests/
+            server/identity/build/reports/tests/
+            server/api-gateway/build/reports/tests/
+      - name: Build container
+        run: docker build -f server/users/Dockerfile -t bloom-users:ci server
+      - name: Smoke test Linux containers and migrations
+        working-directory: server/users
+        run: |
+          trap 'docker compose -f compose.yml -f compose.ci.yml logs --tail 100; docker compose -f compose.yml -f compose.ci.yml down --volumes' EXIT
+          docker compose -f compose.yml -f compose.ci.yml config --quiet
+          docker compose -f compose.yml -f compose.ci.yml up -d --no-build --wait --wait-timeout 180
+          curl --fail http://127.0.0.1:8082/actuator/health/readiness
+
+  publish:
+    if: github.event_name == 'workflow_dispatch' && inputs.publish
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Image name
+        id: image
+        shell: bash
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}-users" >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@v6
+        with:
+          context: server
+          file: server/users/Dockerfile
+          push: true
+          tags: ${{ steps.image.outputs.name }}:${{ github.sha }}
+          labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}

@@ -17,6 +17,14 @@ import org.junit.jupiter.api.Test;
 
 class ProfileApiTest extends UsersIntegrationTest {
     @Test
+    void readinessIsAvailableWithoutExposingDatabaseDetails() throws Exception {
+        var health = response(get("/actuator/health/readiness"), 200);
+        assertThat(health.path("status").asText()).isEqualTo("UP");
+        assertThat(health.has("components")).isFalse();
+        response(get("/actuator/prometheus"), 401);
+    }
+
+    @Test
     void profileLifecycleRejectsStaleUpdatesAndMassAssignment() throws Exception {
         UUID owner = user();
         var updated = response(as(patch("/users/me"), owner).content("""

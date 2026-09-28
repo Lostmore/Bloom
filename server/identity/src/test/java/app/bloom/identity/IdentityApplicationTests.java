@@ -140,6 +140,14 @@ class IdentityApplicationTests {
     }
 
     @Test
+    void readinessIsPublicButDoesNotExposeDatabaseDetails() throws Exception {
+        String response = http.perform(get("/actuator/health/readiness"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat(response).contains("UP").doesNotContain("jdbc", "components", "password");
+        http.perform(get("/actuator/env")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void reuseRevocationCommitsDespiteUnauthorizedResponse() throws Exception {
         Login account = register();
         AuthResponse rotated = refresh(account.tokens().refreshToken(), 200);

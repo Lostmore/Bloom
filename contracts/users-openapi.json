@@ -1,0 +1,1932 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Bloom Users",
+    "version": "1.0.0",
+    "description": "UUIDs are Identity account IDs. Public API through Gateway; internal endpoints only over a private network with a service credential. JSON bodies limited to 16 KiB. Exact location and birthDate are never included in PublicProfile."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080/api/v1"
+    },
+    {
+      "url": "http://localhost:8082"
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/users/me": {
+      "put": {
+        "summary": "Create own profile after Identity registration",
+        "operationId": "put_users_me",
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyProfile"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing, invalid or revoked credentials"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Resource unavailable"
+          },
+          "409": {
+            "description": "Conflicting version or existing profile"
+          },
+          "413": {
+            "description": "Body exceeds 16 KiB"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          },
+          "503": {
+            "description": "Required service unavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProfile"
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "Read own complete profile",
+        "operationId": "get_users_me",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyProfile"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing, invalid or revoked credentials"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Resource unavailable"
+          },
+          "409": {
+            "description": "Conflicting version or existing profile"
+          },
+          "413": {
+            "description": "Body exceeds 16 KiB"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          },
+          "503": {
+            "description": "Required service unavailable"
+          }
+        }
+      },
+      "patch": {
+        "summary": "Update provided fields; null means unchanged, empty text clears optional fields",
+        "operationId": "patch_users_me",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyProfile"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing, invalid or revoked credentials"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Resource unavailable"
+          },
+          "409": {
+            "description": "Conflicting version or existing profile"
+          },
+          "413": {
+            "description": "Body exceeds 16 KiB"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          },
+          "503": {
+            "description": "Required service unavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchProfile"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Erase Users data and durably request account and cross-service deletion",
+        "operationId": "delete_users_me",
+        "responses": {
+          "202": {
+            "description": "Deletion queued; profile erased immediately"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing, invalid or revoked credentials"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Resource unavailable"
+          },
+          "409": {
+            "description": "Conflicting version or existing profile"
+          },
+          "413": {
+            "description": "Body exceeds 16 KiB"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          },
+          "503": {
+            "description": "Required service unavailable"
+          }
+        }
+      }
+    },
+    "/users/{id}": {
+      "get": {
+        "summary": "Read an active discoverable profile, enforcing mutual blocks",
+        "operationId": "get_users__id_",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicProfile"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing, invalid or revoked credentials"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Resource unavailable"
+          },
+          "409": {
+            "description": "Conflicting version or existing profile"
+          },
+          "413": {
+            "description": "Body exceeds 16 KiB"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          },
+          "503": {
+            "description": "Required service unavailable"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/users/me/heartbeat": {
+      "post": {
+        "summary": "Record presence, at most one write per minute",
+        "operationId": "post_users_me_heartbeat",
+        "responses": {
+          "204": {
+            "description": "Completed"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing, invalid or revoked credentials"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Resource unavailable"
+          },
+          "409": {
+            "description": "Conflicting version or existing profile"
+          },
+          "413": {
+            "description": "Body exceeds 16 KiB"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          },
+          "503": {
+            "description": "Required service unavailable"
+          }
+        }
+      }
+    },
+    "/users/me/preferences": {
+      "get": {
+        "summary": "Read own preferences",
+        "operationId": "get_users_me_preferences",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Preferences"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing, invalid or revoked credentials"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Resource unavailable"
+          },
+          "409": {
+            "description": "Conflicting version or existing profile"
+          },
+          "413": {
+            "description": "Body exceeds 16 KiB"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          },
+          "503": {
+            "description": "Required service unavailable"
+          }
+        }
+      },
+      "put": {
+        "summary": "Replace own preferences",
+        "operationId": "put_users_me_preferences",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Preferences"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing, invalid or revoked credentials"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Resource unavailable"
+          },
+          "409": {
+            "description": "Conflicting version or existing profile"
+          },
+          "413": {
+            "description": "Body exceeds 16 KiB"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          },
+          "503": {
+            "description": "Required service unavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "preferences": {
+                    "$ref": "#/components/schemas/Preferences"
+                  }
+                },
+                "required": [
+                  "preferences"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/users/me/privacy": {
+      "get": {
+        "summary": "Read own privacy",
+        "operationId": "get_users_me_privacy",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Privacy"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing, invalid or revoked credentials"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Resource unavailable"
+          },
+          "409": {
+            "description": "Conflicting version or existing profile"
+          },
+          "413": {
+            "description": "Body exceeds 16 KiB"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          },
+          "503": {
+            "description": "Required service unavailable"
+          }
+        }
+      },
+      "put": {
+        "summary": "Replace own privacy",
+        "operationId": "put_users_me_privacy",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Privacy"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing, invalid or revoked credentials"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Resource unavailable"
+          },
+          "409": {
+            "description": "Conflicting version or existing profile"
+          },
+          "413": {
+            "description": "Body exceeds 16 KiB"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          },
+          "503": {
+            "description": "Required service unavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "privacy": {
+                    "$ref": "#/components/schemas/Privacy"
+                  }
+                },
+                "required": [
+                  "privacy"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/interests": {
+      "get": {
+        "summary": "Read interest catalog",
+        "operationId": "get_interests",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Interest"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing, invalid or revoked credentials"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Resource unavailable"
+          },
+          "409": {
+            "description": "Conflicting version or existing profile"
+          },
+          "413": {
+            "description": "Body exceeds 16 KiB"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          },
+          "503": {
+            "description": "Required service unavailable"
+          }
+        }
+      }
+    },
+    "/users/me/interests": {
+      "get": {
+        "summary": "Read own interest IDs",
+        "operationId": "get_users_me_interests",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing, invalid or revoked credentials"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Resource unavailable"
+          },
+          "409": {
+            "description": "Conflicting version or existing profile"
+          },
+          "413": {
+            "description": "Body exceeds 16 KiB"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          },
+          "503": {
+            "description": "Required service unavailable"
+          }
+        }
+      },
+      "put": {
+        "summary": "Replace interest IDs",
+        "operationId": "put_users_me_interests",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing, invalid or revoked credentials"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Resource unavailable"
+          },
+          "409": {
+            "description": "Conflicting version or existing profile"
+          },
+          "413": {
+            "description": "Body exceeds 16 KiB"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          },
+          "503": {
+            "description": "Required service unavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Interests"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/users/me/photos": {
+      "put": {
+        "summary": "Replace ordered ready, owned profile-photo IDs; first is primary",
+        "operationId": "put_users_me_photos",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing, invalid or revoked credentials"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Resource unavailable"
+          },
+          "409": {
+            "description": "Conflicting version or existing profile"
+          },
+          "413": {
+            "description": "Body exceeds 16 KiB"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          },
+          "503": {
+            "description": "Required service unavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Photos"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/users/me/location": {
+      "put": {
+        "summary": "Set private location",
+        "operationId": "put_users_me_location",
+        "responses": {
+          "204": {
+            "description": "Completed"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing, invalid or revoked credentials"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Resource unavailable"
+          },
+          "409": {
+            "description": "Conflicting version or existing profile"
+          },
+          "413": {
+            "description": "Body exceeds 16 KiB"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          },
+          "503": {
+            "description": "Required service unavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "location": {
+                    "$ref": "#/components/schemas/Location"
+                  }
+                },
+                "required": [
+                  "location"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Clear private location",
+        "operationId": "delete_users_me_location",
+        "responses": {
+          "204": {
+            "description": "Completed"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing, invalid or revoked credentials"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Resource unavailable"
+          },
+          "409": {
+            "description": "Conflicting version or existing profile"
+          },
+          "413": {
+            "description": "Body exceeds 16 KiB"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          },
+          "503": {
+            "description": "Required service unavailable"
+          }
+        }
+      }
+    },
+    "/users/{id}/block": {
+      "post": {
+        "summary": "Block another user idempotently",
+        "operationId": "post_users__id__block",
+        "responses": {
+          "204": {
+            "description": "Completed"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing, invalid or revoked credentials"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Resource unavailable"
+          },
+          "409": {
+            "description": "Conflicting version or existing profile"
+          },
+          "413": {
+            "description": "Body exceeds 16 KiB"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          },
+          "503": {
+            "description": "Required service unavailable"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      },
+      "delete": {
+        "summary": "Remove only your own block idempotently",
+        "operationId": "delete_users__id__block",
+        "responses": {
+          "204": {
+            "description": "Completed"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing, invalid or revoked credentials"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Resource unavailable"
+          },
+          "409": {
+            "description": "Conflicting version or existing profile"
+          },
+          "413": {
+            "description": "Body exceeds 16 KiB"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          },
+          "503": {
+            "description": "Required service unavailable"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/users/me/blocks": {
+      "get": {
+        "summary": "List own blocked IDs using keyset pagination",
+        "operationId": "get_users_me_blocks",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing, invalid or revoked credentials"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Resource unavailable"
+          },
+          "409": {
+            "description": "Conflicting version or existing profile"
+          },
+          "413": {
+            "description": "Body exceeds 16 KiB"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          },
+          "503": {
+            "description": "Required service unavailable"
+          }
+        },
+        "parameters": [
+          {
+            "name": "after",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "default": "00000000-0000-0000-0000-000000000000"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          }
+        ]
+      }
+    },
+    "/reports": {
+      "post": {
+        "summary": "Create a private report; maximum 10 per 24 hours",
+        "operationId": "post_reports",
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  },
+                  "required": [
+                    "id"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing, invalid or revoked credentials"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Resource unavailable"
+          },
+          "409": {
+            "description": "Conflicting version or existing profile"
+          },
+          "413": {
+            "description": "Body exceeds 16 KiB"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          },
+          "503": {
+            "description": "Required service unavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Report"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/users/can-interact": {
+      "post": {
+        "summary": "Check active accounts, profiles and mutual blocks; not a chat membership check",
+        "operationId": "post_internal_users_can_interact",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Access"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing, invalid or revoked credentials"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Resource unavailable"
+          },
+          "409": {
+            "description": "Conflicting version or existing profile"
+          },
+          "413": {
+            "description": "Body exceeds 16 KiB"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          },
+          "503": {
+            "description": "Required service unavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Pair"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceToken": []
+          }
+        ],
+        "servers": [
+          {
+            "url": "http://localhost:8082"
+          }
+        ]
+      }
+    },
+    "/internal/users/profiles": {
+      "post": {
+        "summary": "Fetch up to 100 visible profiles for an authenticated viewer",
+        "operationId": "post_internal_users_profiles",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PublicProfile"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing, invalid or revoked credentials"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Resource unavailable"
+          },
+          "409": {
+            "description": "Conflicting version or existing profile"
+          },
+          "413": {
+            "description": "Body exceeds 16 KiB"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          },
+          "503": {
+            "description": "Required service unavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Batch"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceToken": []
+          }
+        ],
+        "servers": [
+          {
+            "url": "http://localhost:8082"
+          }
+        ]
+      }
+    },
+    "/internal/users/can-view-photo": {
+      "post": {
+        "summary": "Check visibility and profile attachment before Media serves bytes",
+        "operationId": "post_internal_users_can_view_photo",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Access"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing, invalid or revoked credentials"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Resource unavailable"
+          },
+          "409": {
+            "description": "Conflicting version or existing profile"
+          },
+          "413": {
+            "description": "Body exceeds 16 KiB"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          },
+          "503": {
+            "description": "Required service unavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PhotoAccess"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceToken": []
+          }
+        ],
+        "servers": [
+          {
+            "url": "http://localhost:8082"
+          }
+        ]
+      }
+    },
+    "/internal/users/{id}/snapshot": {
+      "get": {
+        "summary": "Sensitive snapshot for trusted Discovery projection; never forward to clients",
+        "operationId": "get_internal_users__id__snapshot",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyProfile"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing, invalid or revoked credentials"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Resource unavailable"
+          },
+          "409": {
+            "description": "Conflicting version or existing profile"
+          },
+          "413": {
+            "description": "Body exceeds 16 KiB"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          },
+          "503": {
+            "description": "Required service unavailable"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "security": [
+          {
+            "serviceToken": []
+          }
+        ],
+        "servers": [
+          {
+            "url": "http://localhost:8082"
+          }
+        ]
+      }
+    },
+    "/internal/reports/{id}": {
+      "get": {
+        "summary": "Private report for trusted moderation worker",
+        "operationId": "get_internal_reports__id_",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoredReport"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing, invalid or revoked credentials"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Resource unavailable"
+          },
+          "409": {
+            "description": "Conflicting version or existing profile"
+          },
+          "413": {
+            "description": "Body exceeds 16 KiB"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          },
+          "503": {
+            "description": "Required service unavailable"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "security": [
+          {
+            "serviceToken": []
+          }
+        ],
+        "servers": [
+          {
+            "url": "http://localhost:8082"
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      },
+      "serviceToken": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Internal-Token"
+      }
+    },
+    "schemas": {
+      "Gender": {
+        "type": "string",
+        "enum": [
+          "MALE",
+          "FEMALE",
+          "NON_BINARY",
+          "OTHER"
+        ]
+      },
+      "SearchMode": {
+        "type": "string",
+        "enum": [
+          "DATING",
+          "FRIENDS",
+          "ACTIVITIES",
+          "ANY"
+        ]
+      },
+      "Location": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "latitude": {
+            "type": "number",
+            "minimum": -90,
+            "maximum": 90
+          },
+          "longitude": {
+            "type": "number",
+            "minimum": -180,
+            "maximum": 180
+          }
+        },
+        "required": [
+          "latitude",
+          "longitude"
+        ]
+      },
+      "Privacy": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "discoverable": {
+            "type": "boolean"
+          },
+          "showDistance": {
+            "type": "boolean"
+          },
+          "showLastSeen": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "discoverable",
+          "showDistance",
+          "showLastSeen"
+        ]
+      },
+      "Preferences": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "minAge": {
+            "type": "integer",
+            "minimum": 18,
+            "maximum": 120
+          },
+          "maxAge": {
+            "type": "integer",
+            "minimum": 18,
+            "maximum": 120
+          },
+          "maxDistanceKm": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 500
+          },
+          "preferredGenders": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Gender"
+            },
+            "maxItems": 4,
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "selectedModes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SearchMode"
+            },
+            "maxItems": 4,
+            "minItems": 1,
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "minAge",
+          "maxAge",
+          "maxDistanceKm",
+          "preferredGenders",
+          "selectedModes"
+        ]
+      },
+      "CreateProfile": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "nickname": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "birthDate": {
+            "type": "string",
+            "format": "date",
+            "description": "Age 18–120. Immutable after onboarding."
+          },
+          "gender": {
+            "$ref": "#/components/schemas/Gender"
+          },
+          "searchModes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SearchMode"
+            },
+            "maxItems": 4,
+            "minItems": 1,
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "nickname",
+          "birthDate",
+          "gender",
+          "searchModes"
+        ]
+      },
+      "PatchProfile": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "nickname": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "gender": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Gender"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "bio": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1000
+          },
+          "city": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 100
+          },
+          "relationshipGoal": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 80
+          },
+          "searchModes": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/SearchMode"
+                },
+                "maxItems": 4,
+                "minItems": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "version"
+        ]
+      },
+      "Interest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "icon": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "icon",
+          "category"
+        ]
+      },
+      "Interests": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "interests": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 15,
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "interests"
+        ]
+      },
+      "Photos": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "mediaIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "maxItems": 6,
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "mediaIds"
+        ]
+      },
+      "Access": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "allowed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "allowed"
+        ]
+      },
+      "Pair": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "viewerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "targetId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "viewerId",
+          "targetId"
+        ]
+      },
+      "Batch": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "viewerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "userIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "maxItems": 100,
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "viewerId",
+          "userIds"
+        ]
+      },
+      "PhotoAccess": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "viewerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ownerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "mediaId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "viewerId",
+          "ownerId",
+          "mediaId"
+        ]
+      },
+      "Report": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "targetId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "FAKE_PROFILE",
+              "HARASSMENT",
+              "SPAM",
+              "INAPPROPRIATE_CONTENT",
+              "UNDERAGE",
+              "OTHER"
+            ]
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "targetId",
+          "reason",
+          "description"
+        ]
+      },
+      "StoredReport": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reporterId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "targetId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "reporterId",
+          "targetId",
+          "reason",
+          "description",
+          "createdAt"
+        ]
+      },
+      "MyProfile": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "nickname": {
+            "type": "string"
+          },
+          "gender": {
+            "$ref": "#/components/schemas/Gender"
+          },
+          "bio": {
+            "type": "string"
+          },
+          "city": {
+            "type": "string"
+          },
+          "relationshipGoal": {
+            "type": "string"
+          },
+          "searchModes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SearchMode"
+            }
+          },
+          "interests": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "photos": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "verified": {
+            "type": "boolean"
+          },
+          "lastSeen": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "birthDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Location"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "preferences": {
+            "$ref": "#/components/schemas/Preferences"
+          },
+          "privacy": {
+            "$ref": "#/components/schemas/Privacy"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "deleted": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "nickname",
+          "gender",
+          "bio",
+          "city",
+          "relationshipGoal",
+          "searchModes",
+          "interests",
+          "photos",
+          "verified",
+          "lastSeen",
+          "birthDate",
+          "location",
+          "preferences",
+          "privacy",
+          "createdAt",
+          "version",
+          "deleted"
+        ]
+      },
+      "PublicProfile": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "nickname": {
+            "type": "string"
+          },
+          "gender": {
+            "$ref": "#/components/schemas/Gender"
+          },
+          "bio": {
+            "type": "string"
+          },
+          "city": {
+            "type": "string"
+          },
+          "relationshipGoal": {
+            "type": "string"
+          },
+          "searchModes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SearchMode"
+            }
+          },
+          "interests": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "photos": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "verified": {
+            "type": "boolean"
+          },
+          "lastSeen": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "age": {
+            "type": "integer"
+          },
+          "online": {
+            "type": "boolean"
+          },
+          "distanceKm": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 5,
+                "description": "Upper bound of a 5 km distance bucket."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "nickname",
+          "gender",
+          "bio",
+          "city",
+          "relationshipGoal",
+          "searchModes",
+          "interests",
+          "photos",
+          "verified",
+          "lastSeen",
+          "age",
+          "online",
+          "distanceKm"
+        ]
+      }
+    }
+  }
+}
