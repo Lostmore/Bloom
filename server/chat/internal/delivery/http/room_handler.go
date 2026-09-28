@@ -5,11 +5,12 @@ import (
 	"net/http"
 
 	"bloom.local/chat/internal/service"
+	"github.com/google/uuid"
 )
 
 // CreateRoomRequest - структура для входящих данных при создании комнаты.
 type CreateRoomRequest struct {
-	User2ID int64 `json:"user2_id"`
+	User2ID uuid.UUID `json:"user2_id"`
 }
 
 // RoomHandler обрабатывает HTTP-запросы (REST API), связанные с комнатами.
@@ -29,12 +30,12 @@ func (h *RoomHandler) CreateRoom(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
-	userID, ok := r.Context().Value(UserIDKey).(int64)
+	userID, ok := r.Context().Value(UserIDKey).(uuid.UUID)
 	if !ok {
 		http.Error(w, "Authorization token invalid", http.StatusUnauthorized)
 		return
 	}
-	if req.User2ID <= 0 {
+	if req.User2ID == uuid.Nil {
 		http.Error(w, "Invalid user ID", http.StatusBadRequest)
 		return
 	}
@@ -51,7 +52,7 @@ func (h *RoomHandler) CreateRoom(w http.ResponseWriter, r *http.Request) {
 
 // Обработчик для POST /api/rooms?user_id
 func (h *RoomHandler) GetUserRooms(w http.ResponseWriter, r *http.Request) {
-	userID, ok := r.Context().Value(UserIDKey).(int64)
+	userID, ok := r.Context().Value(UserIDKey).(uuid.UUID)
 	if !ok {
 		http.Error(w, "Authorization token invalid", http.StatusUnauthorized)
 		return

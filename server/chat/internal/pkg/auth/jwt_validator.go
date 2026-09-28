@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 )
 
 // RSATokenValidator реализует TokenValidator с использованием алгоритма RS256.
@@ -14,7 +15,7 @@ type RSATokenValidator struct {
 
 // TokenValidator описывает интерфейс проверки токенов.
 type TokenValidator interface {
-	ValidateToken(tokenStr string) (int64, error)
+	ValidateToken(tokenStr string) (uuid.UUID, error)
 }
 
 // NewRSATokenValidator создает новый валидатор токенов.
@@ -24,7 +25,7 @@ func NewRSATokenValidator(publicKey *rsa.PublicKey) *RSATokenValidator {
 
 // ValidateToken парсит JWT токен, проверяет подпись с помощью публичного RSA-ключа
 // и извлекает ID пользователя из поля "user_id".
-func (v *RSATokenValidator) ValidateToken(tokenStr string) (int64, error) {
+func (v *RSATokenValidator) ValidateToken(tokenStr string) (uuid.UUID, error) {
 	parsedToken, err := jwt.Parse(tokenStr, jwt.Keyfunc(func(token *jwt.Token) (any, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
@@ -32,19 +33,22 @@ func (v *RSATokenValidator) ValidateToken(tokenStr string) (int64, error) {
 		return v.publicKey, nil
 	}))
 	if err != nil {
-		return 0, fmt.Errorf("invalid token: %v", err)
+		return uuid.Nil, fmt.Errorf("invalid token: %v", err)
 	}
 	if !parsedToken.Valid {
-		return 0, fmt.Errorf("invalid token")
+		return uuid.Nil, fmt.Errorf("invalid token")
 	}
 
 	claims, ok := parsedToken.Claims.(jwt.MapClaims)
 	if !ok {
-		return 0, fmt.Errorf("invalid token claims")
+		return uuid.Nil, fmt.Errorf("invalid token claims")
 	}
-	if userIdFloat, ok := claims["user_id"].(float64); ok {
-		return int64(userIdFloat), nil
+	if userIdStr, ok := claims["user_id"].(string); ok {
+		parsedUUID, err := uuid.Parse(userIdStr)
+		if err == nil {
+			return parsedUUID, nil
+		}
 	}
-	return 0, fmt.Errorf("invalid user ID in token")
+	return uuid.Nil, fmt.Errorf("invalid user ID in token")
 
 }

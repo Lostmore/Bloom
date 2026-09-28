@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"bloom.local/chat/internal/domain"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -18,7 +19,7 @@ func NewRoomRepo(pool *pgxpool.Pool) *RoomRepo {
 }
 
 // CreateRoom создает новую чат-комнату для двух пользователей.
-func (r *RoomRepo) CreateRoom(ctx context.Context, user1ID, user2ID int64) (*domain.Room, error) {
+func (r *RoomRepo) CreateRoom(ctx context.Context, user1ID, user2ID uuid.UUID) (*domain.Room, error) {
 	var room domain.Room
 	err := r.pool.QueryRow(ctx, "INSERT INTO rooms (user1_id, user2_id) VALUES ($1, $2) RETURNING id, user1_id, user2_id, is_active, created_at", user1ID, user2ID).Scan(&room.ID, &room.User1ID, &room.User2ID, &room.IsActive, &room.CreatedAt)
 	if err != nil {
@@ -28,7 +29,7 @@ func (r *RoomRepo) CreateRoom(ctx context.Context, user1ID, user2ID int64) (*dom
 }
 
 // GetByUser извлекает все чат-комнаты, в которых участвует указанный пользователь.
-func (r *RoomRepo) GetByUser(ctx context.Context, userID int64) ([]domain.Room, error) {
+func (r *RoomRepo) GetByUser(ctx context.Context, userID uuid.UUID) ([]domain.Room, error) {
 	rows, err := r.pool.Query(ctx, "SELECT * FROM rooms WHERE user1_id=$1 OR user2_id=$1", userID)
 	if err != nil {
 		return nil, err
@@ -61,7 +62,7 @@ func (r *RoomRepo) GetRoomByID(ctx context.Context, roomID int64) (*domain.Room,
 
 // GetRoomByUsers ищет чат-комнату между двумя пользователями (в любом порядке).
 // Возвращает nil, nil если комната не найдена, чтобы избежать дублирования чатов.
-func (r *RoomRepo) GetRoomByUsers(ctx context.Context, user1ID, user2ID int64) (*domain.Room, error) {
+func (r *RoomRepo) GetRoomByUsers(ctx context.Context, user1ID, user2ID uuid.UUID) (*domain.Room, error) {
 	var room domain.Room
 	err := r.pool.QueryRow(ctx, "SELECT * FROM rooms WHERE (user1_id= $1 AND user2_id=$2) OR (user1_id=$2 AND user2_id=$1)", user1ID, user2ID).Scan(&room.ID, &room.User1ID, &room.User2ID, &room.IsActive, &room.CreatedAt)
 	if err != nil {

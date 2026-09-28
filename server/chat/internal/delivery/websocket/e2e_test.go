@@ -20,6 +20,7 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/google/uuid"
 	gorilla "github.com/gorilla/websocket"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
@@ -57,6 +58,12 @@ func setupTestDB(t *testing.T) (*pgxpool.Pool, func()) {
 	return pool, teardown
 }
 
+var (
+	u10 = uuid.MustParse("00000000-0000-0000-0000-000000000010")
+	u11 = uuid.MustParse("00000000-0000-0000-0000-000000000011")
+	u12 = uuid.MustParse("00000000-0000-0000-0000-000000000012")
+)
+
 func TestE2EChat(t *testing.T) {
 	pool, teardown := setupTestDB(t)
 	defer teardown()
@@ -78,18 +85,18 @@ func TestE2EChat(t *testing.T) {
 	defer srv.Close()
 
 	ctx := context.Background()
-	room, err := svc.CreateRoom(ctx, 10, 11)
+	room, err := svc.CreateRoom(ctx, u10, u11)
 	require.NoError(t, err)
 
 	// Helper to generate token
-	generateToken := func(userID int64) string {
-		token := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{"user_id": userID})
+	generateToken := func(userID uuid.UUID) string {
+		token := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{"user_id": userID.String()})
 		tokenString, _ := token.SignedString(privateKey)
 		return tokenString
 	}
 
 	// 1. Connect User 10 (Allowed)
-	token10 := generateToken(10)
+	token10 := generateToken(u10)
 	u, _ := url.Parse(srv.URL)
 	u.Scheme = "ws"
 	u.RawQuery = "room_id=" + strconv.FormatInt(room.ID, 10) + "&token=" + token10
@@ -107,15 +114,15 @@ func TestE2EChat(t *testing.T) {
 	err = ws.ReadJSON(&recMsg)
 	require.NoError(t, err)
 	require.Equal(t, msgContent, recMsg.Content)
-	require.Equal(t, int64(10), recMsg.SenderID)
+	require.Equal(t, u10, recMsg.SenderID)
 
-	history, err := svc.GetRoomHistory(ctx, room.ID, 10)
+	history, err := svc.GetRoomHistory(ctx, room.ID, u10)
 	require.NoError(t, err)
 	require.Len(t, history, 1)
 	require.Equal(t, msgContent, history[0].Content)
 
 	// 2. Connect User 11 (Allowed)
-	token11 := generateToken(11)
+	token11 := generateToken(u11)
 	u.RawQuery = "room_id=" + strconv.FormatInt(room.ID, 10) + "&token=" + token11
 	ws2, _, err := gorilla.DefaultDialer.Dial(u.String(), nil)
 	require.NoError(t, err)
@@ -125,10 +132,10 @@ func TestE2EChat(t *testing.T) {
 	err = ws2.ReadJSON(&recMsg2)
 	require.NoError(t, err)
 	require.Equal(t, msgContent, recMsg2.Content)
-	require.Equal(t, int64(10), recMsg2.SenderID)
+	require.Equal(t, u10, recMsg2.SenderID)
 
 	// 3. Connect User 12 (Forbidden - not in room)
-	token12 := generateToken(12)
+	token12 := generateToken(u12)
 	u.RawQuery = "room_id=" + strconv.FormatInt(room.ID, 10) + "&token=" + token12
 	ws3, _, err := gorilla.DefaultDialer.Dial(u.String(), nil)
 	require.NoError(t, err, "dial should succeed because token is valid")

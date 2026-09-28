@@ -3,6 +3,8 @@ package domain
 import (
 	"context"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // Attachment представляет собой медиа-вложение к сообщению
@@ -18,7 +20,7 @@ type Attachment struct {
 type Message struct {
 	ID          int64        `json:"id"`
 	RoomID      int64        `json:"room_id"`
-	SenderID    int64        `json:"sender_id"`
+	SenderID    uuid.UUID    `json:"sender_id"`
 	Content     string       `json:"content"`
 	Attachments []Attachment `json:"attachments,omitempty"`
 	CreatedAt   time.Time    `json:"created_at"`

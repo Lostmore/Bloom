@@ -6,6 +6,7 @@ import (
 
 	"bloom.local/chat/internal/domain"
 	"bloom.local/chat/internal/service"
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )
 
@@ -13,7 +14,7 @@ type Client struct {
 	Hub    *Hub
 	Conn   *websocket.Conn
 	RoomID int64
-	UserID int64
+	UserID uuid.UUID
 	Send   chan *domain.Message
 }
 type Hub struct {

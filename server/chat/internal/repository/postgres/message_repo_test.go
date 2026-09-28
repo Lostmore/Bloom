@@ -10,6 +10,7 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
@@ -59,12 +60,15 @@ func TestMessageRepo_SaveAndGet(t *testing.T) {
 	repo := NewMessageRepo(pool)
 	ctx := context.Background()
 
-	_, err := pool.Exec(ctx, "INSERT INTO rooms (id, user1_id, user2_id) VALUES (1, 10, 20)")
+	_, err := pool.Exec(ctx, "INSERT INTO rooms (id, user1_id, user2_id) VALUES (1, $1, $2)",
+		uuid.MustParse("00000000-0000-0000-0000-000000000010"),
+		uuid.MustParse("00000000-0000-0000-0000-000000000020"),
+	)
 	require.NoError(t, err)
 
 	msg := &domain.Message{
 		RoomID:   1,
-		SenderID: 10,
+		SenderID: uuid.MustParse("00000000-0000-0000-0000-000000000010"),
 		Content:  "Hello",
 	}
 	err = repo.Save(ctx, msg)
@@ -72,7 +76,7 @@ func TestMessageRepo_SaveAndGet(t *testing.T) {
 
 	msg2 := &domain.Message{
 		RoomID:   1,
-		SenderID: 20,
+		SenderID: uuid.MustParse("00000000-0000-0000-0000-000000000020"),
 		Content:  "Hi",
 	}
 	err = repo.Save(ctx, msg2)
@@ -89,11 +93,14 @@ func TestMessageRepo_SaveWithAttachments(t *testing.T) {
 	defer teardown()
 	repo := NewMessageRepo(pool)
 	ctx := context.Background()
-	_, err := pool.Exec(ctx, "INSERT INTO rooms (id, user1_id, user2_id) VALUES (1, 10, 20)")
+	_, err := pool.Exec(ctx, "INSERT INTO rooms (id, user1_id, user2_id) VALUES (1, $1, $2)",
+		uuid.MustParse("00000000-0000-0000-0000-000000000010"),
+		uuid.MustParse("00000000-0000-0000-0000-000000000020"),
+	)
 	require.NoError(t, err)
 	msg := &domain.Message{
 		RoomID:   1,
-		SenderID: 10,
+		SenderID: uuid.MustParse("00000000-0000-0000-0000-000000000010"),
 		Content:  "Look at these files!",
 		Attachments: []domain.Attachment{
 			{URL: "http://example.com/1.jpg", MediaType: "image/jpeg"},
