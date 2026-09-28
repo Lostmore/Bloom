@@ -11,6 +11,7 @@ import app.bloom.identity.exception.RegistrationException;
 import app.bloom.identity.model.Account;
 import app.bloom.identity.model.RefreshSession;
 import app.bloom.identity.repository.AccountRepository;
+import app.bloom.identity.repository.EventRepository;
 import app.bloom.identity.repository.RefreshSessionRepository;
 import app.bloom.identity.repository.SecurityAudit;
 import app.bloom.identity.security.JwtProvider;
@@ -35,15 +36,18 @@ public class AuthService {
     private final JwtProvider jwt;
     private final LoginProtection protection;
     private final SecurityAudit audit;
+    private final EventRepository events;
     private final String dummyHash;
 
-    public AuthService(AccountRepository accounts, RefreshSessionRepository sessions, PasswordEncoder passwords, JwtProvider jwt, LoginProtection protection, SecurityAudit audit) {
+    public AuthService(AccountRepository accounts, RefreshSessionRepository sessions, PasswordEncoder passwords, JwtProvider jwt,
+            LoginProtection protection, SecurityAudit audit, EventRepository events) {
         this.accounts = accounts;
         this.sessions = sessions;
         this.passwords = passwords;
         this.jwt = jwt;
         this.protection = protection;
         this.audit = audit;
+        this.events = events;
         dummyHash = passwords.encode(UUID.randomUUID().toString());
     }
 
@@ -88,6 +92,7 @@ public class AuthService {
         }
         if (session.isRevoked()) {
             sessions.revokeAllByFamilyId(session.getFamilyId());
+            events.append(account, "session.revoked", session.getFamilyId(), "REFRESH_REUSE");
             audit.record(account.getId(), "REFRESH_REUSE", session.getFamilyId());
             throw new InvalidTokenException("Invalid refresh token");
         }
@@ -113,11 +118,13 @@ public class AuthService {
         } catch (InvalidTokenException exception) {
             return;
         }
-        if (accounts.lockById(jwt.accountId(claims)).isEmpty()) {
+        var account = accounts.lockById(jwt.accountId(claims));
+        if (account.isEmpty()) {
             return;
         }
         sessions.findByTokenHash(TokenHasher.sha256(request.refreshToken())).ifPresent(session -> {
             sessions.revokeAllByFamilyId(session.getFamilyId());
+            events.append(account.get(), "session.revoked", session.getFamilyId(), "LOGOUT");
             audit.record(session.getAccountId(), "LOGOUT", session.getFamilyId());
         });
     }
@@ -129,6 +136,7 @@ public class AuthService {
         account.incrementTokenVersion();
         accounts.saveAndFlush(account);
         sessions.revokeAllByAccountId(accountId);
+        events.append(account, "sessions.revoked", null, "LOGOUT_ALL");
         audit.record(accountId, "LOGOUT_ALL", accountId);
     }
 
@@ -153,11 +161,13 @@ public class AuthService {
 
     @Transactional
     public void revokeSession(UUID accountId, UUID familyId) {
-        accounts.lockById(accountId).filter(Account::isActive).orElseThrow(AuthenticationException::new);
+        Account account = accounts.lockById(accountId).filter(Account::isActive)
+                .orElseThrow(AuthenticationException::new);
         if (!sessions.existsByAccountIdAndFamilyIdAndRevokedFalseAndExpiresAtAfter(accountId, familyId, Instant.now())) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Session unavailable");
         }
         sessions.revokeAllByFamilyId(familyId);
+        events.append(account, "session.revoked", familyId, "SESSION_REVOKED");
         audit.record(accountId, "SESSION_REVOKED", familyId);
     }
 

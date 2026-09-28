@@ -2,25 +2,37 @@ package app.bloom.identity;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import app.bloom.identity.dto.AuthResponse;
 import app.bloom.identity.dto.RefreshRequest;
+import app.bloom.identity.events.OutboxPublisher;
 import app.bloom.identity.exception.InvalidTokenException;
+import app.bloom.identity.model.AccountStatus;
+import app.bloom.identity.repository.EventRepository;
 import app.bloom.identity.security.LoginProtection;
+import app.bloom.identity.service.AccountStatusService;
 import app.bloom.identity.service.AuthService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import java.time.Duration;
 import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.common.serialization.StringDeserializer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -29,19 +41,38 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.test.EmbeddedKafkaBroker;
+import org.springframework.kafka.test.context.EmbeddedKafka;
+import org.springframework.kafka.test.utils.KafkaTestUtils;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
-@SpringBootTest
+@SpringBootTest(properties = "bloom.events.scheduling-enabled=false")
 @AutoConfigureMockMvc
+@EmbeddedKafka(partitions = 1, topics = "bloom.identity.v1", kraft = true)
 class IdentityApplicationTests {
     private static final EmbeddedPostgres POSTGRES = postgres();
     private static final AtomicLong PHONE = new AtomicLong(79000000000L);
     private static final String PASSWORD = "Strong-password-2026";
     private static final String INTERNAL_TOKEN = "test-internal-token-at-least-32-characters";
 
+    private static final String MODERATION_TOKEN = "test-moderation-token-at-least-32-characters";
+
+    @Autowired
+    private AccountStatusService accountStatus;
+    @Autowired
+    private EventRepository events;
+    @Autowired
+    private OutboxPublisher publisher;
+    @Autowired
+    private TransactionTemplate transactions;
+    @SuppressWarnings("SpringJavaInjectionPointsAutowiringInspection")
+    @Autowired
+    private EmbeddedKafkaBroker broker;
     @Autowired
     private MockMvc http;
     @Autowired
@@ -110,6 +141,7 @@ class IdentityApplicationTests {
         registry.add("bloom.jwt.private-key", () -> TEST_PRIVATE_KEY);
         registry.add("bloom.jwt.public-key", () -> TEST_PUBLIC_KEY);
         registry.add("bloom.internal-token", () -> INTERNAL_TOKEN);
+        registry.add("bloom.moderation-token", () -> MODERATION_TOKEN);
         registry.add("bloom.security.argon2.memory", () -> 1024);
         registry.add("bloom.security.argon2.iterations", () -> 1);
     }
@@ -122,6 +154,23 @@ class IdentityApplicationTests {
     @BeforeEach
     void resetLimits() {
         jdbc.sql("DELETE FROM auth_attempts").update();
+        jdbc.sql("DELETE FROM outbox_events").update();
+    }
+
+    @Test
+    void publicOpenApiIsGeneratedAndHidesInternalOperations() throws Exception {
+        var result = http.perform(get("/v3/api-docs/public")).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        JsonNode api = json.readTree(result);
+        assertThat(api.path("openapi").asText()).startsWith("3.");
+        assertThat(api.path("paths").has("/auth/register")).isTrue();
+        assertThat(api.path("paths").path("/auth/register").path("post").path("responses").has("201")).isTrue();
+        assertThat(api.path("paths").path("/auth/login").path("post").path("security").size()).isZero();
+        assertThat(api.path("components").path("securitySchemes").has("bearerAuth")).isTrue();
+        assertThat(api.path("paths").path("/auth/me").path("get").path("parameters").size()).isZero();
+        api.path("paths").fieldNames().forEachRemaining(path -> assertThat(path).startsWith("/auth/"));
+        assertThat(result).doesNotContain("X-Internal-Token", "X-Moderation-Token", "UpdateAccountStatusRequest");
+        http.perform(get("/v3/api-docs")).andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -157,6 +206,8 @@ class IdentityApplicationTests {
         int events = jdbc.sql("SELECT count(*) FROM security_audit WHERE action = 'REFRESH_REUSE'")
                 .query(Integer.class).single();
         assertThat(events).isPositive();
+        assertThat(jdbc.sql("SELECT count(*) FROM outbox_events WHERE payload->'data'->>'reason' = 'REFRESH_REUSE'")
+                .query(Integer.class).single()).isPositive();
     }
 
     @Test
@@ -178,6 +229,12 @@ class IdentityApplicationTests {
                 .andExpect(status().isNoContent());
         refresh(second.refreshToken(), 401);
         http.perform(get("/auth/me").header("Authorization", bearer(second))).andExpect(status().isUnauthorized());
+        JsonNode event = json.readTree(jdbc.sql("SELECT payload::text FROM outbox_events WHERE event_type = 'sessions.revoked'")
+                .query(String.class).single());
+        assertThat(event.path("type").asText()).isEqualTo("sessions.revoked");
+        assertThat(event.path("data").path("familyId").isNull()).isTrue();
+        assertThat(event.path("data").path("tokenVersion").asLong()).isEqualTo(1);
+
     }
 
     @Test
@@ -192,6 +249,11 @@ class IdentityApplicationTests {
                 .andExpect(status().isNoContent());
         refresh(first.tokens().refreshToken(), 401);
         http.perform(get("/auth/me").header("Authorization", bearer(other.tokens()))).andExpect(status().isOk());
+        JsonNode event = json.readTree(jdbc.sql("SELECT payload::text FROM outbox_events ORDER BY sequence LIMIT 1")
+                .query(String.class).single());
+        assertThat(event.path("type").asText()).isEqualTo("session.revoked");
+        assertThat(event.path("data").path("familyId").asText()).isEqualTo(family);
+
     }
 
     @Test
@@ -291,6 +353,110 @@ class IdentityApplicationTests {
                 .andExpect(status().isUnauthorized());
         refresh(account.tokens().refreshToken(), 401);
         assertThat(accountsRemaining(id)).isZero();
+        assertThat(jdbc.sql("SELECT count(*) FROM outbox_events WHERE aggregate_id = ? AND event_type = 'account.deleted'")
+                .param(id).query(Integer.class).single()).isEqualTo(1);
+    }
+
+    @Test
+    void blockingRequiresModerationAndUnblockingNeverRestoresOldTokens() throws Exception {
+        Login account = register();
+        UUID id = accountId(account);
+        String endpoint = "/internal/identity/accounts/" + id + "/status";
+        String body = "{\"status\":\"SUSPENDED\"}";
+        http.perform(put(endpoint).contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isUnauthorized());
+        http.perform(put(endpoint).header("X-Internal-Token", INTERNAL_TOKEN)
+                .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isForbidden());
+        http.perform(put(endpoint).header("X-Internal-Token", INTERNAL_TOKEN)
+                .header("X-Moderation-Token", MODERATION_TOKEN)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"DELETED\"}"))
+                .andExpect(status().isBadRequest());
+        http.perform(put(endpoint).header("X-Internal-Token", INTERNAL_TOKEN)
+                .header("X-Moderation-Token", MODERATION_TOKEN)
+                .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isNoContent());
+        accountStatus.update(id, AccountStatus.SUSPENDED);
+        login(account.phone(), PASSWORD, 401);
+        refresh(account.tokens().refreshToken(), 401);
+        http.perform(get("/auth/me").header("Authorization", bearer(account.tokens())))
+                .andExpect(status().isUnauthorized());
+        accountStatus.update(id, AccountStatus.ACTIVE);
+        refresh(account.tokens().refreshToken(), 401);
+        login(account.phone(), PASSWORD, 200);
+        http.perform(get("/auth/me").header("Authorization", bearer(account.tokens())))
+                .andExpect(status().isUnauthorized());
+        assertThat(jdbc.sql("SELECT event_type FROM outbox_events ORDER BY sequence").query(String.class).list())
+                .containsExactly("account.blocked", "account.unblocked", "session.revoked");
+        assertThat(jdbc.sql("SELECT (payload->>'version')::bigint FROM outbox_events ORDER BY sequence")
+                .query(Long.class).list()).containsExactly(1L, 2L, 3L);
+    }
+
+    @Test
+    void accountChangeAndEventRollbackTogether() throws Exception {
+        Login account = register();
+        UUID id = accountId(account);
+        assertThatThrownBy(() -> transactions.executeWithoutResult(transaction -> {
+            accountStatus.update(id, AccountStatus.SUSPENDED);
+            throw new IllegalStateException("rollback test");
+        })).isInstanceOf(IllegalStateException.class);
+        assertThat(jdbc.sql("SELECT count(*) FROM outbox_events").query(Integer.class).single()).isZero();
+        assertThat(jdbc.sql("SELECT event_version FROM accounts WHERE id = ?").param(id)
+                .query(Long.class).single()).isZero();
+        http.perform(get("/auth/me").header("Authorization", bearer(account.tokens())))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void kafkaFailureRetainsEventsAndPreservesAccountOrder() throws Exception {
+        UUID id = accountId(register());
+        accountStatus.update(id, AccountStatus.SUSPENDED);
+        accountStatus.update(id, AccountStatus.ACTIVE);
+        KafkaTemplate<String, String> unavailable = mock(KafkaTemplate.class);
+        when(unavailable.send(anyString(), anyString(), anyString()))
+                .thenReturn(CompletableFuture.failedFuture(new IllegalStateException("broker offline")));
+        var failing = new OutboxPublisher(events, unavailable, transactions, "bloom.identity.v1");
+        assertThat(failing.publishNext()).isTrue();
+        assertThat(failing.publishNext()).isFalse();
+        assertThat(jdbc.sql("SELECT attempts FROM outbox_events ORDER BY sequence")
+                .query(Integer.class).list()).containsExactly(1, 0);
+        assertThat(jdbc.sql("SELECT count(*) FROM outbox_events WHERE published_at IS NULL")
+                .query(Integer.class).single()).isEqualTo(2);
+
+        // A delayed account must not stop delivery attempts for other accounts.
+        accountStatus.update(accountId(register()), AccountStatus.SUSPENDED);
+        assertThat(failing.publishNext()).isTrue();
+        jdbc.sql("UPDATE outbox_events SET next_attempt_at = now() WHERE aggregate_id = ?")
+                .param(id).update();
+        var next = transactions.execute(transaction -> events.lockNext().orElseThrow());
+        assertThat(next.eventType()).isEqualTo("account.blocked");
+    }
+
+    @Test
+    void committedEventReachesKafkaWithUserKeyAndNoCredentials() throws Exception {
+        Login account = register();
+        UUID id = accountId(account);
+        accountStatus.update(id, AccountStatus.SUSPENDED);
+        var properties = KafkaTestUtils.consumerProps("identity-test-" + UUID.randomUUID(), "false", broker);
+        try (var consumer = new KafkaConsumer<String, String>(
+                properties, new StringDeserializer(), new StringDeserializer())) {
+            broker.consumeFromAnEmbeddedTopic(consumer, "bloom.identity.v1");
+            assertThat(publisher.publishNext()).isTrue();
+            var record = KafkaTestUtils.getSingleRecord(consumer, "bloom.identity.v1", Duration.ofSeconds(20));
+            assertThat(record.key()).isEqualTo(id.toString());
+            assertThat(record.value()).doesNotContain(account.phone(), PASSWORD, account.tokens().accessToken(),
+                    account.tokens().refreshToken(), INTERNAL_TOKEN, MODERATION_TOKEN);
+            JsonNode event = json.readTree(record.value());
+            assertThat(event.path("type").asText()).isEqualTo("account.blocked");
+            assertThat(event.path("data").path("status").asText()).isEqualTo("SUSPENDED");
+            assertThat(event.path("version").asLong()).isEqualTo(1);
+            assertThat(jdbc.sql("SELECT count(*) FROM outbox_events WHERE published_at IS NOT NULL")
+                    .query(Integer.class).single()).isEqualTo(1);
+        }
+    }
+
+    private UUID accountId(Login account) {
+        return jdbc.sql("SELECT id FROM accounts WHERE phone_number = ?")
+                .param(account.phone()).query(UUID.class).single();
     }
 
     private int accountsRemaining(java.util.UUID id) {

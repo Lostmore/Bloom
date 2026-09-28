@@ -17,6 +17,21 @@ import org.junit.jupiter.api.Test;
 
 class ProfileApiTest extends UsersIntegrationTest {
     @Test
+    void publicOpenApiDescribesProfilesWithoutInternalOperationsOrPrincipalParameters() throws Exception {
+        var api = response(get("/v3/api-docs/public"), 200);
+        assertThat(api.path("openapi").asText()).startsWith("3.");
+        assertThat(api.path("paths").has("/users/me")).isTrue();
+        assertThat(api.path("paths").has("/interests")).isTrue();
+        assertThat(api.path("paths").path("/users/me").path("get").path("parameters").size()).isZero();
+        assertThat(api.path("components").path("schemas").has("CreateProfileRequest")).isTrue();
+        api.path("paths").fieldNames().forEachRemaining(path ->
+                assertThat(path).doesNotStartWith("/internal/").doesNotStartWith("/actuator/"));
+        assertThat(api.path("components").path("securitySchemes").has("bearerAuth")).isTrue();
+        response(get("/v3/api-docs"), 401);
+        response(get("/users/me"), 401);
+    }
+
+    @Test
     void readinessIsAvailableWithoutExposingDatabaseDetails() throws Exception {
         var health = response(get("/actuator/health/readiness"), 200);
         assertThat(health.path("status").asText()).isEqualTo("UP");

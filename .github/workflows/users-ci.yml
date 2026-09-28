@@ -13,6 +13,7 @@ on:
       - 'server/gradlew*'
       - 'server/.dockerignore'
       - 'contracts/users-*'
+      - 'contracts/identity-*'
       - '.github/workflows/users-ci.yml'
   pull_request:
     branches: [develop, main]
@@ -26,6 +27,7 @@ on:
       - 'server/gradlew*'
       - 'server/.dockerignore'
       - 'contracts/users-*'
+      - 'contracts/identity-*'
       - '.github/workflows/users-ci.yml'
   workflow_dispatch:
     inputs:

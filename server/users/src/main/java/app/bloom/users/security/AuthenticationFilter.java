@@ -47,7 +47,8 @@ public class AuthenticationFilter extends OncePerRequestFilter {
                     return;
                 }
                 authenticate("service", "ROLE_SERVICE");
-            } else if (!path.startsWith("/actuator/health")) {
+            } else if (!path.startsWith("/actuator/health")
+                    && !("GET".equals(request.getMethod()) && path.equals("/v3/api-docs/public"))) {
                 String bearer = request.getHeader("Authorization");
                 if (bearer == null || !bearer.startsWith("Bearer ") || bearer.length() > 4103) {
                     response.sendError(401);

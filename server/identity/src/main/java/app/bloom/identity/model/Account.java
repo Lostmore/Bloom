@@ -1,7 +1,6 @@
 package app.bloom.identity.model;
 
 import jakarta.persistence.*;
-
 import java.time.Instant;
 import java.util.UUID;
 
@@ -57,6 +56,11 @@ public class Account {
     public void incrementTokenVersion() {
         tokenVersion++;
         updatedAt = Instant.now();
+    }
+
+    public void changeStatus(AccountStatus status) {
+        this.status = status;
+        incrementTokenVersion();
     }
 
     public void touchLastSeen() {

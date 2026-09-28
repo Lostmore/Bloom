@@ -18,7 +18,18 @@ if args.reuse and output.exists() and any(output.iterdir()):
     required = ("identity.yml", "users.yml", "identity-private.pem", "compose.yml")
     if not all((output / name).is_file() for name in required):
         raise SystemExit("Incomplete local configuration. Restore its missing files; credentials were not changed.")
-    print("Existing local configuration preserved. No credentials were regenerated.")
+    # Add new Identity settings without rotating existing database/JWT credentials.
+    identity_file = output / "identity.yml"
+    config = yaml.safe_load(identity_file.read_text(encoding="utf-8"))
+    defaults = yaml.safe_load((root / "server/identity/src/main/resources/application.yml").read_text(encoding="utf-8"))
+    before = yaml.safe_dump(config, sort_keys=False)
+    config["spring"].setdefault("kafka", defaults["spring"]["kafka"])
+    config["bloom"].setdefault("events", defaults["bloom"]["events"])
+    if "moderation-token" not in config["bloom"]:
+        config["bloom"]["moderation-token"] = secrets.token_hex(32)
+    if yaml.safe_dump(config, sort_keys=False) != before:
+        identity_file.write_text(yaml.safe_dump(config, allow_unicode=True, sort_keys=False), encoding="utf-8")
+    print("Existing credentials preserved; missing Identity event settings added.")
     raise SystemExit(0)
 output.mkdir(exist_ok=True)
 passwords = {name: secrets.token_hex(24) for name in ("admin", "identity", "users", "chat")}
@@ -42,6 +53,7 @@ for service in ("identity", "users"):
     config["spring"]["datasource"]["password"] = passwords[service]
     if service == "identity":
         config["bloom"]["internal-token"] = identity_token
+        config["bloom"]["moderation-token"] = secrets.token_hex(32)
         config["bloom"]["jwt"]["private-key"] = private_key.read_text(encoding="utf-8")
         config["bloom"]["jwt"]["public-key"] = public_key
     else:

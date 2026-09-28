@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
+import reactor.core.publisher.Mono;
 
 @RestController
 @ConditionalOnProperty(name = "bloom.api-docs.enabled", havingValue = "true", matchIfMissing = true)
@@ -30,7 +31,7 @@ public class ApiDocsController {
     }
 
     @GetMapping("/docs/openapi/{service}")
-    public JsonNode specification(@PathVariable String service) {
+    public Mono<JsonNode> specification(@PathVariable String service) {
         return catalog.specification(service);
     }
 }
