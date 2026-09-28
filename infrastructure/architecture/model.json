@@ -1,0 +1,235 @@
+{
+  "descriptions": {
+    "api-gateway": "Единая точка входа. Направляет HTTP и WebSocket-запросы, объединяет Swagger сервисов. HTTP-вход приложения опубликован на порту 8080.",
+    "identity": "Аккаунты, вход по телефону и паролю, access/refresh-токены, сессии и блокировка аккаунта.",
+    "users": "Анкета, интересы, настройки поиска, приватность, блокировки и удаление пользователя.",
+    "chat": "Комнаты, история и WebSocket-сообщения. События о вложениях отправляются через outbox.",
+    "media": "Файлы на диске, метаданные в PostgreSQL. Kafka подтверждает использование вложений.",
+    "interactions": "Заготовка сервиса взаимодействий и совпадений.",
+    "activities": "Заготовка сервиса совместных активностей.",
+    "discovery": "Будущий поиск и подбор людей. Пока только Go-модуль.",
+    "notifications": "Будущие уведомления. Пока только Go-модуль."
+  },
+  "connections": [
+    {
+      "id": "users-identity",
+      "from": "users",
+      "to": "identity",
+      "kind": "http",
+      "label": "Проверка сессии",
+      "description": "Users отправляет accessToken в POST /internal/identity/introspect. Identity возвращает active и accountId. Также клиент проверяет активные аккаунты и запрашивает удаление.",
+      "file": "server/users/src/main/java/app/bloom/users/client/IdentityClient.java",
+      "needle": "/internal/identity/introspect"
+    },
+    {
+      "id": "users-media",
+      "from": "users",
+      "to": "media",
+      "kind": "gap",
+      "label": "Контракт не совпадает",
+      "description": "Users вызывает /internal/media/profile-photos/validate. В текущих Go-обработчиках Media этот метод не найден. Это незавершённая интеграция, а не рабочая связь.",
+      "file": "server/users/src/main/java/app/bloom/users/client/MediaClient.java",
+      "needle": "/internal/media/profile-photos/validate"
+    },
+    {
+      "id": "identity-kafka",
+      "from": "identity",
+      "to": "kafka",
+      "kind": "event",
+      "label": "bloom.identity.v1",
+      "description": "OutboxPublisher публикует события аккаунта и отзыва сессий. Наличие события не означает, что все сервисы уже подписаны на него.",
+      "file": "server/identity/src/main/java/app/bloom/identity/events/OutboxPublisher.java",
+      "needle": "kafka.send("
+    },
+    {
+      "id": "users-kafka",
+      "from": "users",
+      "to": "kafka",
+      "kind": "event",
+      "label": "bloom.users.v1",
+      "description": "События изменений пользователей из transactional outbox.",
+      "file": "server/users/src/main/java/app/bloom/users/events/OutboxPublisher.java",
+      "needle": "kafka.send("
+    },
+    {
+      "id": "chat-kafka",
+      "from": "chat",
+      "to": "kafka",
+      "kind": "event",
+      "label": "media.message_saved",
+      "description": "После сохранения сообщения с вложениями outbox-воркер публикует событие для Media.",
+      "file": "server/chat/internal/worker/outbox.go",
+      "needle": "media.message_saved"
+    },
+    {
+      "id": "kafka-media",
+      "from": "kafka",
+      "to": "media",
+      "kind": "event",
+      "label": "media-group",
+      "description": "Media читает media.message_saved, извлекает ID из URL вложений и помечает файлы постоянными.",
+      "file": "server/media/cmd/main.go",
+      "needle": "media.message_saved"
+    }
+  ],
+  "notes": [
+    {
+      "service": "chat",
+      "title": "Авторизация пока отдельная",
+      "text": "Chat генерирует собственный RSA-ключ. Проверка токенов через Identity в этом коде ещё не подключена.",
+      "file": "server/chat/cmd/main.go",
+      "needle": "rsa.GenerateKey"
+    },
+    {
+      "service": "media",
+      "title": "Контроль доступа требует реализации",
+      "text": "В просмотренных Upload и ServeMedia нет проверки пользователя и участника чата. Эта карта не обозначает файлы как приватные.",
+      "file": "server/media/internal/delivery/http/media_handler.go",
+      "needle": "func (h *MediaHandler) ServeMedia"
+    },
+    {
+      "service": "users",
+      "title": "Проверка фото не подключена",
+      "text": "Клиент проверки фото существует в Users, но соответствующий внутренний endpoint Media пока не реализован.",
+      "file": "server/users/src/main/java/app/bloom/users/client/MediaClient.java",
+      "needle": "/internal/media/profile-photos/validate"
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "login",
+      "title": "Вход в приложение",
+      "subtitle": "От телефона до access-токена",
+      "icon": "key",
+      "steps": [
+        {
+          "edge": "client-gateway",
+          "title": "Приложение отправляет данные входа",
+          "text": "POST /api/v1/auth/login. Пользователь передаёт телефон и пароль через публичный Gateway."
+        },
+        {
+          "edge": "gateway-identity",
+          "title": "Gateway направляет запрос",
+          "text": "Убирает префикс /api/v1. Identity получает POST /auth/login."
+        },
+        {
+          "edge": "identity-db",
+          "title": "Identity проверяет аккаунт",
+          "text": "Проверяет учётные данные и состояние аккаунта, сохраняет refresh-сессию в своей БД."
+        },
+        {
+          "edge": "gateway-identity",
+          "reverse": true,
+          "title": "Identity выдаёт пару токенов",
+          "text": "Ответ содержит accessToken, refreshToken и срок действия. Gateway передаёт его приложению."
+        },
+        {
+          "edge": "client-gateway",
+          "reverse": true,
+          "title": "Токены получает приложение",
+          "text": "Клиент сохраняет токены. Access-токен прикладывается к следующим запросам в Authorization: Bearer …"
+        }
+      ]
+    },
+    {
+      "id": "profile",
+      "title": "Открыть свою анкету",
+      "subtitle": "Users проверяет токен через Identity",
+      "icon": "user",
+      "steps": [
+        {
+          "edge": "client-gateway",
+          "title": "Запрос с токеном",
+          "text": "GET /api/v1/users/me. Приложение прикладывает пользовательский access-токен."
+        },
+        {
+          "edge": "gateway-users",
+          "title": "Запрос приходит в Users",
+          "text": "Gateway сохраняет Authorization и удаляет недоверенные служебные заголовки."
+        },
+        {
+          "edge": "users-identity",
+          "title": "Users проверяет сессию",
+          "text": "Внутренний POST /internal/identity/introspect: access-токен в JSON, служебный токен в заголовке."
+        },
+        {
+          "edge": "users-identity",
+          "reverse": true,
+          "title": "Identity возвращает accountId",
+          "text": "При active=true Users знает, кто сделал запрос. При недоступной проверке нельзя считать пользователя авторизованным."
+        },
+        {
+          "edge": "users-db",
+          "title": "Чтение анкеты",
+          "text": "Users читает профиль из своей БД по проверенному ID. Ответ возвращается через Gateway."
+        }
+      ]
+    },
+    {
+      "id": "media",
+      "title": "Фотография в сообщении",
+      "subtitle": "Файл → сообщение → событие Kafka",
+      "icon": "image",
+      "steps": [
+        {
+          "edge": "gateway-media",
+          "title": "Загрузка файла через Gateway",
+          "text": "POST /api/v1/media/upload с multipart-файлом. В текущем Media проверка владельца ещё не реализована."
+        },
+        {
+          "edge": "media-files",
+          "title": "Файл записывается на диск",
+          "text": "Media сохраняет содержимое в uploads; Docker сохраняет каталог в media-data."
+        },
+        {
+          "edge": "media-db",
+          "title": "Метаданные сохраняются в БД",
+          "text": "Media возвращает URL файла. Приложение добавляет его во вложение сообщения."
+        },
+        {
+          "edge": "gateway-chat",
+          "title": "Приложение отправляет сообщение по WS",
+          "text": "Gateway проксирует /api/v1/ws в /ws. Chat пока использует собственные тестовые JWT."
+        },
+        {
+          "edge": "chat-db",
+          "title": "Сообщение и событие — в транзакции",
+          "text": "Chat сохраняет сообщение, вложения и запись media.message_saved в outbox_events."
+        },
+        {
+          "edge": "chat-kafka",
+          "title": "Outbox публикует событие",
+          "text": "Фоновый воркер читает outbox и отправляет событие в Kafka."
+        },
+        {
+          "edge": "kafka-media",
+          "title": "Media подтверждает использование",
+          "text": "Consumer группы media-group получает URL вложений и помечает файлы постоянными."
+        }
+      ]
+    },
+    {
+      "id": "block",
+      "title": "Блокировка аккаунта",
+      "subtitle": "Сессии и надёжная отправка события",
+      "icon": "shield",
+      "steps": [
+        {
+          "edge": "identity-db",
+          "title": "Внутренняя операция модерации",
+          "text": "PUT /internal/identity/accounts/{id}/status вызывается напрямую в приватной сети со служебными полномочиями. Gateway не публикует этот метод."
+        },
+        {
+          "edge": "identity-db",
+          "title": "Изменение состояния аккаунта",
+          "text": "Identity блокирует аккаунт, отзывает сессии и записывает account.blocked в outbox в одной транзакции."
+        },
+        {
+          "edge": "identity-kafka",
+          "title": "Событие доставляется в Kafka",
+          "text": "OutboxPublisher отправляет событие в bloom.identity.v1. Потребители этого события в Chat пока не подключены; закрытие WS по нему не реализовано."
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024"><rect width="1024" height="1024" fill="#FFF8FC"/><g transform="translate(224 200) scale(6)">
+  <title id="title">Bloom Bud — alternative four-petal mark</title>
+  <defs>
+    <linearGradient id="bloom" x1="16" y1="15" x2="81" y2="90" gradientUnits="userSpaceOnUse"><stop stop-color="#FFB5A0"/><stop offset=".47" stop-color="#FF78AF"/><stop offset="1" stop-color="#CE63E6"/></linearGradient>
+    <linearGradient id="bloomRose" x1="80" y1="10" x2="22" y2="90" gradientUnits="userSpaceOnUse"><stop stop-color="#FF8FC7"/><stop offset="1" stop-color="#F35BA0"/></linearGradient>
+  </defs>
+  <path fill="url(#bloom)" d="M42 46C22 47 9 35 10 14C10 11 12 10 15 11C35 14 47 27 42 46Z"/>
+  <path fill="url(#bloomRose)" d="M54 46C49 27 61 14 81 11C84 10 86 11 86 14C87 35 74 47 54 46Z"/>
+  <path fill="url(#bloomRose)" d="M42 58C46 77 34 89 16 92C12 93 10 91 10 87C10 69 22 57 42 58Z"/>
+  <path fill="url(#bloom)" d="M54 58C74 57 86 69 86 87C86 91 84 93 80 92C62 89 50 77 54 58Z"/>
+</g></svg>

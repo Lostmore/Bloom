@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024"><rect width="1024" height="1024" fill="#FFF8FC"/><g transform="translate(224 200) scale(6)">
+  <title id="title">Bloom — four petals</title>
+  <defs>
+    <linearGradient id="coral" x1="9" y1="13" x2="45" y2="50" gradientUnits="userSpaceOnUse"><stop stop-color="#FFB0A2"/><stop offset="1" stop-color="#FF7FAD"/></linearGradient>
+    <linearGradient id="rose" x1="86" y1="5" x2="49" y2="49" gradientUnits="userSpaceOnUse"><stop stop-color="#FF83BA"/><stop offset="1" stop-color="#FF56A0"/></linearGradient>
+    <linearGradient id="pink" x1="13" y1="82" x2="42" y2="54" gradientUnits="userSpaceOnUse"><stop stop-color="#FF65A3"/><stop offset="1" stop-color="#FF93AD"/></linearGradient>
+    <linearGradient id="orchid" x1="48" y1="53" x2="87" y2="99" gradientUnits="userSpaceOnUse"><stop stop-color="#FF7DB5"/><stop offset="1" stop-color="#DF55D9"/></linearGradient>
+  </defs>
+  <path fill="url(#coral)" d="M10 13C8 13 7 15 8 18C9 36 21 48 42 48C44 29 33 13 10 13Z"/>
+  <path fill="url(#rose)" d="M84 5C63 6 48 21 48 48C71 47 88 32 88 9C88 6 87 5 84 5Z"/>
+  <path fill="url(#pink)" d="M42 54C25 54 13 62 12 75C11 86 26 87 34 78C40 72 43 63 42 54Z"/>
+  <path fill="url(#orchid)" d="M49 54C47 77 59 99 82 99C86 99 88 98 87 94C86 72 74 56 49 54Z"/>
+</g></svg>
