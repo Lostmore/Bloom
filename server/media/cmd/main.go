@@ -11,6 +11,7 @@ import (
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/joho/godotenv"
 
+	"bloom.local/media/docs"
 	"bloom.local/media/internal/broker/kafka"
 	httpDelivery "bloom.local/media/internal/delivery/http"
 	"bloom.local/media/internal/repository/postgres"
@@ -23,10 +24,6 @@ import (
 // @title           Bloom Media API
 // @version         1.0
 // @description     Микросервис для работы с медиа-файлами в Bloom
-// @BasePath        /api/v1
-// @securityDefinitions.apikey BearerAuth
-// @in header
-// @name Authorization
 func main() {
 	_ = godotenv.Load()
 	brokers := []string{os.Getenv("KAFKA_BROKER")}
@@ -81,10 +78,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/media/upload", handler.Upload)
 	mux.HandleFunc("/media/", handler.ServeMedia)
-	mux.HandleFunc("/openapi.json", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		http.ServeFile(w, r, "docs/swagger.json")
-	})
+	mux.HandleFunc("GET /openapi.json", docs.Handler)
 
 	consumer := kafka.NewConsumer(brokers, "media.message_saved", "media-group", svc)
 	go consumer.Start(ctx)

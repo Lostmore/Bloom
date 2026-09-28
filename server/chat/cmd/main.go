@@ -9,6 +9,7 @@ import (
 	"os"
 	"time"
 
+	"bloom.local/chat/docs"
 	"bloom.local/chat/internal/broker/kafka"
 	httpDelivery "bloom.local/chat/internal/delivery/http"
 	"bloom.local/chat/internal/delivery/websocket"
@@ -26,10 +27,7 @@ import (
 // @title           Bloom Chat API
 // @version         1.0
 // @description     Микросервис для работы с чатами в Bloom
-// @BasePath        /api/v1
-// @securityDefinitions.apikey BearerAuth
-// @in header
-// @name Authorization
+// @securityDefinitions.bearerauth BearerAuth
 func main() {
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
@@ -108,10 +106,7 @@ func main() {
 		}
 		w.Write([]byte(tokenString))
 	})
-	http.HandleFunc("/openapi.json", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		http.ServeFile(w, r, "docs/swagger.json")
-	})
+	http.HandleFunc("GET /openapi.json", docs.Handler)
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		websocket.ServeWS(hub, validator, w, r)
 	})

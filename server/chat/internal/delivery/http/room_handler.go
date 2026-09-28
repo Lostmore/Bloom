@@ -10,7 +10,7 @@ import (
 
 // CreateRoomRequest - структура для входящих данных при создании комнаты.
 type CreateRoomRequest struct {
-	User2ID uuid.UUID `json:"user2_id"`
+	User2ID uuid.UUID `json:"user2_id" swaggertype:"string" format:"uuid" binding:"required"`
 }
 
 // RoomHandler обрабатывает HTTP-запросы (REST API), связанные с комнатами.
@@ -35,7 +35,7 @@ func NewRoomHandler(svc *service.MessageService) *RoomHandler {
 // @Failure      401  {string}  string "Authorization token invalid"
 // @Failure      500  {string}  string "Failed to create room"
 // @Security     BearerAuth
-// @Router       /rooms [post]
+// @Router       /api/rooms [post]
 func (h *RoomHandler) CreateRoom(w http.ResponseWriter, r *http.Request) {
 	var req CreateRoomRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -71,7 +71,7 @@ func (h *RoomHandler) CreateRoom(w http.ResponseWriter, r *http.Request) {
 // @Failure      401  {string}  string "Authorization token invalid"
 // @Failure      500  {string}  string "Failed to get user rooms"
 // @Security     BearerAuth
-// @Router       /rooms [get]
+// @Router       /api/rooms [get]
 func (h *RoomHandler) GetUserRooms(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value(UserIDKey).(uuid.UUID)
 	if !ok {

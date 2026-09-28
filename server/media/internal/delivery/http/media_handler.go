@@ -63,7 +63,7 @@ func (h *MediaHandler) Upload(w http.ResponseWriter, r *http.Request) {
 // @Tags         media
 // @Produce      application/octet-stream
 // @Param        id path string true "ID медиа-файла"
-// @Success      200  {file}    file "Содержимое файла"
+// @Success      200  {string}  string "Содержимое файла"
 // @Failure      400  {string}  string "ID is required"
 // @Failure      404  {string}  string "File not found"
 // @Failure      500  {string}  string "Internal server error"

@@ -10,8 +10,8 @@ import (
 // Room представляет собой сущность чат-комнаты между двумя пользователями.
 type Room struct {
 	ID        int64     `json:"id"`
-	User1ID   uuid.UUID `json:"user1_id"`
-	User2ID   uuid.UUID `json:"user2_id"`
+	User1ID   uuid.UUID `json:"user1_id" swaggertype:"string" format:"uuid"`
+	User2ID   uuid.UUID `json:"user2_id" swaggertype:"string" format:"uuid"`
 	IsActive  bool      `json:"is_active"`
 	CreatedAt time.Time `json:"created_at"`
 }

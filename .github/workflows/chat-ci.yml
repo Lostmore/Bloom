@@ -29,6 +29,10 @@ jobs:
       working-directory: ./server/chat
       run: go mod download
 
+    - name: Generate OpenAPI 3 documentation
+      working-directory: ./server/chat
+      run: go generate ./docs
+
     - name: Run Tests
       working-directory: ./server/chat
       run: go test -v ./...

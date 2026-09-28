@@ -1,144 +1,174 @@
 {
-    "swagger": "2.0",
+    "components": {
+        "schemas": {
+            "domain.Room": {
+                "properties": {
+                    "created_at": {
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "integer"
+                    },
+                    "is_active": {
+                        "type": "boolean"
+                    },
+                    "user1_id": {
+                        "format": "uuid",
+                        "type": "string"
+                    },
+                    "user2_id": {
+                        "format": "uuid",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "http.CreateRoomRequest": {
+                "properties": {
+                    "user2_id": {
+                        "format": "uuid",
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "user2_id"
+                ],
+                "type": "object"
+            }
+        },
+        "securitySchemes": {
+            "BearerAuth": {
+                "scheme": "bearer",
+                "type": "http"
+            }
+        }
+    },
     "info": {
         "description": "Микросервис для работы с чатами в Bloom",
         "title": "Bloom Chat API",
-        "contact": {},
         "version": "1.0"
     },
-    "basePath": "/api/v1",
+    "externalDocs": {
+        "description": "",
+        "url": ""
+    },
     "paths": {
-        "/rooms": {
+        "/api/rooms": {
             "get": {
+                "description": "Возвращает список комнат, в которых состоит текущий пользователь",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "items": {
+                                        "$ref": "#/components/schemas/domain.Room"
+                                    },
+                                    "type": "array"
+                                }
+                            }
+                        },
+                        "description": "Список комнат"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "description": "Authorization token invalid"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "description": "Failed to get user rooms"
+                    }
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
                 ],
-                "description": "Возвращает список комнат, в которых состоит текущий пользователь",
-                "produces": [
-                    "application/json"
-                ],
+                "summary": "Получить список комнат",
                 "tags": [
                     "rooms"
-                ],
-                "summary": "Получить список комнат",
-                "responses": {
-                    "200": {
-                        "description": "Список комнат",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/domain.Room"
+                ]
+            },
+            "post": {
+                "description": "Создает новую комнату чата с выбранным пользователем",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/http.CreateRoomRequest",
+                                "summary": "request",
+                                "description": "Данные для создания комнаты"
                             }
                         }
                     },
+                    "description": "Данные для создания комнаты",
+                    "required": true
+                },
+                "responses": {
+                    "201": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/domain.Room"
+                                }
+                            }
+                        },
+                        "description": "Созданная комната"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "description": "Invalid request body"
+                    },
                     "401": {
-                        "description": "Authorization token invalid",
-                        "schema": {
-                            "type": "string"
-                        }
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "description": "Authorization token invalid"
                     },
                     "500": {
-                        "description": "Failed to get user rooms",
-                        "schema": {
-                            "type": "string"
-                        }
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "description": "Failed to create room"
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "BearerAuth": []
                     }
                 ],
-                "description": "Создает новую комнату чата с выбранным пользователем",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
+                "summary": "Создать комнату",
                 "tags": [
                     "rooms"
-                ],
-                "summary": "Создать комнату",
-                "parameters": [
-                    {
-                        "description": "Данные для создания комнаты",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/http.CreateRoomRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Созданная комната",
-                        "schema": {
-                            "$ref": "#/definitions/domain.Room"
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid request body",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "401": {
-                        "description": "Authorization token invalid",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "500": {
-                        "description": "Failed to create room",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
+                ]
             }
         }
     },
-    "definitions": {
-        "domain.Room": {
-            "type": "object",
-            "properties": {
-                "created_at": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "is_active": {
-                    "type": "boolean"
-                },
-                "user1_id": {
-                    "type": "string"
-                },
-                "user2_id": {
-                    "type": "string"
-                }
-            }
-        },
-        "http.CreateRoomRequest": {
-            "type": "object",
-            "properties": {
-                "user2_id": {
-                    "type": "string"
-                }
-            }
-        }
-    },
-    "securityDefinitions": {
-        "BearerAuth": {
-            "type": "apiKey",
-            "name": "Authorization",
-            "in": "header"
-        }
-    }
+    "openapi": "3.1.0"
 }
