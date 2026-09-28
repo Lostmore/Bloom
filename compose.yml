@@ -66,20 +66,14 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
-    entrypoint: ["/opt/kafka/bin/kafka-topics.sh"]
+    entrypoint: ["/bin/sh", "-ec"]
     command:
-      - --bootstrap-server
-      - kafka:9092
-      - --create
-      - --if-not-exists
-      - --topic
-      - bloom.users.v1
-      - --partitions
-      - '3'
-      - --replication-factor
-      - '1'
-      - --config
-      - retention.ms=604800000
+      - |
+        for topic in bloom.users.v1 bloom.identity.v1; do
+          /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 \
+            --create --if-not-exists --topic "$$topic" --partitions 3 \
+            --replication-factor 1 --config retention.ms=604800000
+        done
     restart: 'no'
     networks: [backend]
 
@@ -96,6 +90,7 @@ services:
     command:
       - --server.address=0.0.0.0
       - --spring.datasource.url=jdbc:postgresql://postgres:5432/bloom_identity
+      - --spring.kafka.bootstrap-servers=kafka:9092
     ports:
       - '127.0.0.1:8081:8081'
     depends_on:
@@ -183,7 +178,7 @@ services:
       - --DISCOVERY_URL=http://discovery:8092
       - --MEDIA_URL=http://media:8093
       - --NOTIFICATIONS_URL=http://notifications:8094
-      - --bloom.api-docs.enabled=false
+      - --bloom.api-docs.enabled=true
     depends_on:
       identity:
         condition: service_healthy

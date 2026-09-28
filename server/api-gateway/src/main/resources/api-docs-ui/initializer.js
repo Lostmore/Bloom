@@ -14,6 +14,17 @@ async function initializeDocs() {
     persistAuthorization: false,
     queryConfigEnabled: false,
     validatorUrl: null,
+    responseInterceptor(response) {
+      const status = document.querySelector('#docs-status');
+      const url = new URL(response.url, window.location.origin);
+      if (url.pathname.startsWith('/docs/openapi/')) {
+        status.hidden = response.status < 400;
+        status.textContent = response.status >= 400
+          ? 'Описание выбранного сервиса недоступно. Сервис должен быть запущен и отдавать OpenAPI 3. Можно выбрать другой сервис в списке.'
+          : '';
+      }
+      return response;
+    },
     requestInterceptor(request) {
       const url = new URL(request.url, window.location.origin);
       if (url.origin !== window.location.origin

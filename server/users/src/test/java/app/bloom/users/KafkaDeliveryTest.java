@@ -19,8 +19,12 @@ import org.springframework.test.annotation.DirtiesContext;
 @EmbeddedKafka(partitions = 1, topics = "bloom.users.v1", kraft = true)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class KafkaDeliveryTest extends UsersIntegrationTest {
-    @Autowired EmbeddedKafkaBroker broker;
-    @Autowired OutboxPublisher publisher;
+    @SuppressWarnings("SpringJavaInjectionPointsAutowiringInspection")
+    @Autowired
+    private EmbeddedKafkaBroker broker;
+
+    @Autowired
+    private OutboxPublisher publisher;
 
     @Test
     void outboxPublishesAnActualKafkaRecordWithStableUserKey() throws Exception {

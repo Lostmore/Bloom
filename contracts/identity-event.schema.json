@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Bloom Identity event v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "eventId",
+    "schemaVersion",
+    "type",
+    "userId",
+    "version",
+    "occurredAt",
+    "data"
+  ],
+  "properties": {
+    "eventId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "type": {
+      "enum": [
+        "account.blocked",
+        "account.unblocked",
+        "account.deleted",
+        "session.revoked",
+        "sessions.revoked"
+      ]
+    },
+    "userId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "tokenVersion",
+        "familyId",
+        "reason"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "ACTIVE",
+            "SUSPENDED",
+            "DELETED"
+          ]
+        },
+        "tokenVersion": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "familyId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "reason": {
+          "enum": [
+            "ACCOUNT_BLOCKED",
+            "ACCOUNT_UNBLOCKED",
+            "ACCOUNT_DELETED",
+            "LOGOUT",
+            "LOGOUT_ALL",
+            "SESSION_REVOKED",
+            "REFRESH_REUSE"
+          ]
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "session.revoked"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "properties": {
+              "familyId": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "data": {
+            "properties": {
+              "familyId": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

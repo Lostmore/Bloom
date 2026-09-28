@@ -71,6 +71,41 @@ spring:
 bloom:
   api-docs:
     enabled: ${API_DOCS_ENABLED:true}
+    services:
+      identity:
+        name: Bloom Identity
+        url: ${IDENTITY_URL:http://localhost:8081}/v3/api-docs/public
+        paths: ["/auth/**"]
+      users:
+        name: Bloom Users
+        url: ${USERS_URL:http://localhost:8082}/v3/api-docs/public
+        paths: ["/users/**", "/interests", "/reports"]
+      interactions:
+        name: Bloom Interactions
+        url: ${INTERACTIONS_URL:http://localhost:8083}/v3/api-docs/public
+        paths: ["/interactions/**", "/matches/**"]
+      activities:
+        name: Bloom Activities
+        url: ${ACTIVITIES_URL:http://localhost:8084}/v3/api-docs/public
+        paths: ["/activities/**"]
+      chat:
+        name: Bloom Chat
+        url: ${CHAT_URL:http://localhost:8091}/openapi.json
+        paths: ["/conversations", "/conversations/**"]
+        path-mappings:
+          "[/api/rooms]": /conversations
+      discovery:
+        name: Bloom Discovery
+        url: ${DISCOVERY_URL:http://localhost:8092}/openapi.json
+        paths: ["/discovery/**"]
+      media:
+        name: Bloom Media
+        url: ${MEDIA_URL:http://localhost:8093}/openapi.json
+        paths: ["/media/**"]
+      notifications:
+        name: Bloom Notifications
+        url: ${NOTIFICATIONS_URL:http://localhost:8094}/openapi.json
+        paths: ["/notifications/**"]
 
 management:
   endpoints:

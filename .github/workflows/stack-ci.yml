@@ -25,6 +25,8 @@ jobs:
         with:
           python-version: '3.12'
       - run: python -m pip install PyYAML==6.0.2
+      - name: Test configuration upgrades preserve credentials
+        run: python -m unittest discover -s infrastructure/tests
       - run: python infrastructure/prepare-ci.py
       - name: Validate and start the full stack
         run: |
