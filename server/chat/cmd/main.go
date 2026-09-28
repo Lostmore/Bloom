@@ -7,7 +7,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"strconv"
 	"time"
 
 	"bloom.local/chat/internal/broker/kafka"
@@ -76,18 +75,6 @@ func main() {
 
 	roomHandler := httpDelivery.NewRoomHandler(svc)
 
-	enableCORS := func(next http.HandlerFunc) http.HandlerFunc {
-		return func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Access-Control-Allow-Origin", "*")
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-			if r.Method == "OPTIONS" {
-				w.WriteHeader(http.StatusOK)
-				return
-			}
-			next(w, r)
-		}
-	}
 	roomsLogic := func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPost {
 			roomHandler.CreateRoom(w, r)
@@ -97,20 +84,15 @@ func main() {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
 	}
-	http.HandleFunc("/api/rooms", enableCORS(httpDelivery.AuthMiddleware(validator, roomsLogic)))
-	http.HandleFunc("/api/test/token", enableCORS(func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/api/rooms", httpDelivery.AuthMiddleware(validator, roomsLogic))
+	http.HandleFunc("/api/test/token", func(w http.ResponseWriter, r *http.Request) {
 		userIDStr := r.URL.Query().Get("user_id")
 		if userIDStr == "" {
 			http.Error(w, "user_id is required", http.StatusBadRequest)
 			return
 		}
-		userID, err := strconv.ParseInt(userIDStr, 10, 64)
-		if err != nil {
-			http.Error(w, "Invalid user ID", http.StatusBadRequest)
-			return
-		}
 		token := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{
-			"user_id": userID,
+			"user_id": userIDStr,
 		})
 		tokenString, err := token.SignedString(privateKey)
 		if err != nil {
@@ -118,7 +100,7 @@ func main() {
 			return
 		}
 		w.Write([]byte(tokenString))
-	}))
+	})
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		websocket.ServeWS(hub, validator, w, r)
 	})

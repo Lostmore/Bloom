@@ -16,3 +16,4 @@ local.properties
 go.work
 go.work.sum
 server/media/uploads/
+.local/

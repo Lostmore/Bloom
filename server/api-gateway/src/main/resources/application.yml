@@ -10,6 +10,12 @@ spring:
       add-mappings: false
   cloud:
     gateway:
+      globalcors:                       # Удалить после реализации фронтенд
+        cors-configurations:            # Удалить после реализации фронтенд
+          '[/**]':                      # Удалить после реализации фронтенд
+            allowedOrigins: "*"         # Удалить после реализации фронтенд
+            allowedMethods: "*"         # Удалить после реализации фронтенд
+            allowedHeaders: "*"         # Удалить после реализации фронтенд
       server:
         webflux:
           httpclient:
@@ -44,6 +50,8 @@ spring:
               uri: ${CHAT_WS_URL:ws://localhost:8091}
               predicates:
                 - Path=/api/v1/ws
+              filters:
+                - SetPath=/ws
             - id: chat-rooms
               uri: ${CHAT_URL:http://localhost:8091}
               predicates:
@@ -55,6 +63,18 @@ spring:
               uri: ${CHAT_URL:http://localhost:8091}
               predicates:
                 - Path=/api/v1/conversations/**
+            - id: chat-test-client                      # Удалить после реализации аутентификации
+              uri: ${CHAT_URL:http://localhost:8091}    # Удалить после реализации аутентификации
+              predicates:                               # Удалить после реализации аутентификации
+                - Path=/test-client                     # Удалить после реализации аутентификации
+              filters:                                  # Удалить после реализации аутентификации
+                - SetPath=/                             # Удалить после реализации аутентификации
+            - id: chat-test-token                       # Удалить после реализации аутентификации
+              uri: ${CHAT_URL:http://localhost:8091}    # Удалить после реализации аутентификации
+              predicates:                               # Удалить после реализации аутентификации
+                - Path=/api/v1/test/token               # Удалить после реализации аутентификации
+              filters:                                  # Удалить после реализации аутентификации
+                - SetPath=/api/test/token               # Удалить после реализации аутентификации
             - id: discovery
               uri: ${DISCOVERY_URL:http://localhost:8092}
               predicates:

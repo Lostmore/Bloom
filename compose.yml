@@ -162,6 +162,26 @@ services:
     mem_limit: 256m
     networks: [backend]
 
+  media:
+    image: bloom-media:local
+    build:
+      context: ./server/media
+    environment:
+      DATABASE_URL: postgres://bloom_media:CHANGE_ME@postgres:5432/bloom_media?sslmode=disable
+      HOST_URL: http://localhost:8080/api/v1
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    read_only: true
+    tmpfs: [/tmp]
+    volumes:
+      - media-data:/app/uploads
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    mem_limit: 256m
+    networks: [backend]
+
   api-gateway:
     <<: *java
     image: bloom-api-gateway:local
@@ -230,6 +250,7 @@ services:
 volumes:
   postgres-data:
   kafka-data:
+  media-data:
 
 networks:
   edge:

@@ -69,7 +69,7 @@ func main() {
 	handler := httpDelivery.NewMediaHandler(svc, hostUrl)
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/upload", handler.Upload)
+	mux.HandleFunc("/media/upload", handler.Upload)
 	mux.HandleFunc("/media/", handler.ServeMedia)
 
 	consumer := kafka.NewConsumer(brokers, "media.message_saved", "media-group", svc)
