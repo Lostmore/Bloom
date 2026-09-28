@@ -22,7 +22,10 @@ import (
 
 func main() {
 	_ = godotenv.Load()
-	brokers := []string{"localhost:9092"}
+	brokers := []string{os.Getenv("KAFKA_BROKER")}
+	if brokers[0] == "" {
+		brokers = []string{"localhost:9092"}
+	}
 	ctx := context.Background()
 	dsn := os.Getenv("DATABASE_URL")
 	if dsn == "" {
@@ -69,7 +72,7 @@ func main() {
 	handler := httpDelivery.NewMediaHandler(svc, hostUrl)
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/upload", handler.Upload)
+	mux.HandleFunc("/media/upload", handler.Upload)
 	mux.HandleFunc("/media/", handler.ServeMedia)
 
 	consumer := kafka.NewConsumer(brokers, "media.message_saved", "media-group", svc)

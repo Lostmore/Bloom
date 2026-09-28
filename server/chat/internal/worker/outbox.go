@@ -39,33 +39,56 @@ func (r *OutboxRelay) Run(ctx context.Context) {
 func (r *OutboxRelay) processEvents(ctx context.Context, topic string) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
+		log.Printf("Outbox: Error starting tx: %v", err)
 		return
 	}
 	defer tx.Rollback(ctx)
 
 	rows, err := tx.Query(ctx, "SELECT id, payload FROM outbox_events WHERE processed = false AND topic = $1 LIMIT 50 FOR UPDATE SKIP LOCKED", topic)
 	if err != nil {
-		log.Printf("Error querying outbox_events: %v", err)
+		log.Printf("Outbox: Error querying outbox_events: %v", err)
 		return
 	}
 	defer rows.Close()
+
+	var count int
+	var processedIDs []int64
 
 	for rows.Next() {
 		var id int64
 		var payload []byte
 		err := rows.Scan(&id, &payload)
 		if err != nil {
+			log.Printf("Outbox scan error: %v", err)
 			continue
 		}
 		var message domain.MessageSavedEvent
 		if err := json.Unmarshal(payload, &message); err != nil {
+			log.Printf("Outbox unmarshal error for ID %d: %v", id, err)
 			continue
 		}
 		if err := r.producer.PublishMessageSaved(ctx, &message); err != nil {
+			log.Printf("Outbox publish error for ID %d: %v", id, err)
 			continue
 		}
 
-		tx.Exec(ctx, "UPDATE outbox_events SET processed = true WHERE id = $1", id)
+		processedIDs = append(processedIDs, id)
 	}
-	tx.Commit(ctx)
+	rows.Close()
+
+	for _, id := range processedIDs {
+		_, err = tx.Exec(ctx, "UPDATE outbox_events SET processed = true WHERE id = $1", id)
+		if err != nil {
+			log.Printf("Outbox: Error updating outbox_events for ID %d: %v", id, err)
+			continue
+		}
+		count++
+	}
+
+	if count > 0 {
+		log.Printf("Outbox: successfully processed %d events", count)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		log.Printf("Outbox: Error committing tx: %v", err)
+	}
 }

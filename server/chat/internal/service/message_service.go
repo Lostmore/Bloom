@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/google/uuid"
+
 	"bloom.local/chat/internal/domain"
 )
 
@@ -32,7 +34,7 @@ func (s *MessageService) SendMessage(ctx context.Context, msg *domain.Message) e
 }
 
 // GetRoomHistory извлекает историю сообщений для указанной комнаты.
-func (s *MessageService) GetRoomHistory(ctx context.Context, roomID, userID int64) ([]*domain.Message, error) {
+func (s *MessageService) GetRoomHistory(ctx context.Context, roomID int64, userID uuid.UUID) ([]*domain.Message, error) {
 	room, err := s.roomRepo.GetRoomByID(ctx, roomID)
 	if err != nil || room == nil {
 		return nil, errors.New("room not found")
@@ -44,7 +46,7 @@ func (s *MessageService) GetRoomHistory(ctx context.Context, roomID, userID int6
 }
 
 // CreateRoom создает новый чат между пользователями.
-func (s *MessageService) CreateRoom(ctx context.Context, user1ID, user2ID int64) (*domain.Room, error) {
+func (s *MessageService) CreateRoom(ctx context.Context, user1ID, user2ID uuid.UUID) (*domain.Room, error) {
 	if user1ID == user2ID {
 		return nil, errors.New("cannot create chat with yourself")
 	}
@@ -59,6 +61,6 @@ func (s *MessageService) CreateRoom(ctx context.Context, user1ID, user2ID int64)
 }
 
 // GetUserRooms получает список всех чатов для конкретного пользователя.
-func (s *MessageService) GetUserRooms(ctx context.Context, userID int64) ([]domain.Room, error) {
+func (s *MessageService) GetUserRooms(ctx context.Context, userID uuid.UUID) ([]domain.Room, error) {
 	return s.roomRepo.GetByUser(ctx, userID)
 }

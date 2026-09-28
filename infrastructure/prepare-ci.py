@@ -32,7 +32,7 @@ if args.reuse and output.exists() and any(output.iterdir()):
     print("Existing credentials preserved; missing Identity event settings added.")
     raise SystemExit(0)
 output.mkdir(exist_ok=True)
-passwords = {name: secrets.token_hex(24) for name in ("admin", "identity", "users", "chat")}
+passwords = {name: secrets.token_hex(24) for name in ("admin", "identity", "users", "chat", "media")}
 identity_token = secrets.token_hex(32)
 
 private_key = output / "identity-private.pem"
@@ -71,9 +71,13 @@ overrides["services"]["postgres"] = {"environment": {
     "IDENTITY_DATABASE_PASSWORD": passwords["identity"],
     "USERS_DATABASE_PASSWORD": passwords["users"],
     "CHAT_DATABASE_PASSWORD": passwords["chat"],
+    "MEDIA_DATABASE_PASSWORD": passwords["media"],
 }}
 overrides["services"]["chat"] = {"environment": {
     "DATABASE_URL": f"postgres://bloom_chat:{passwords['chat']}@postgres:5432/bloom_chat?sslmode=disable"
+}}
+overrides["services"]["media"] = {"environment": {
+    "DATABASE_URL": f"postgres://bloom_media:{passwords['media']}@postgres:5432/bloom_media?sslmode=disable"
 }}
 (output / "compose.yml").write_text(yaml.safe_dump(overrides, sort_keys=False), encoding="utf-8")
 print(f"Stack configuration prepared in {args.output} (credentials not printed).")

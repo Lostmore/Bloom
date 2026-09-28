@@ -19,14 +19,14 @@
     <div class="sidebar">
         <h3>Управление</h3>
         <div class="controls">
-            <label>Мой User ID:</label>
-            <input type="number" id="myUserId" value="1" style="width: 100%;">
+            <label>Мой User ID (UUID):</label>
+            <input type="text" id="myUserId" value="00000000-0000-0000-0000-000000000001" style="width: 100%;">
         </div>
         
         <div class="controls" style="border: 1px solid #eee; padding: 10px;">
             <h4>Создать новый чат</h4>
-            <label>С кем (User ID):</label>
-            <input type="number" id="targetUserId" value="2" style="width: 100%;">
+            <label>С кем (User ID UUID):</label>
+            <input type="text" id="targetUserId" value="00000000-0000-0000-0000-000000000002" style="width: 100%;">
             <button onclick="createRoom()" style="margin-top: 5px; width: 100%;">Создать (POST)</button>
         </div>
 
@@ -38,8 +38,15 @@
     <div class="main">
         <h2 id="chatTitle">Выберите чат</h2>
         <div id="chat"></div>
-        <input type="text" id="msg" placeholder="Напишите сообщение..." disabled style="width: calc(100% - 100px);">
-        <button id="sendBtn" onclick="sendMessage()" disabled>Отправить</button>
+        
+        <div id="attachmentsPreview" style="margin-bottom: 5px; font-size: 0.9em; color: #555;"></div>
+        
+        <div style="display: flex; gap: 5px;">
+            <input type="text" id="msg" placeholder="Напишите сообщение..." disabled style="flex-grow: 1;">
+            <input type="file" id="mediaFile" multiple style="display:none;" onchange="uploadMedia()">
+            <button id="uploadBtn" onclick="document.getElementById('mediaFile').click()" disabled>📎 Файлы</button>
+            <button id="sendBtn" onclick="sendMessage()" disabled>Отправить</button>
+        </div>
     </div>
 
     <script>
@@ -47,19 +54,25 @@
         let currentRoomId = null;
         
         // ВАЖНО: Убедись, что эти порты совпадают с твоим main.go
-        const apiUrl = "http://localhost:8091/api/rooms";
-        const wsUrl = "ws://localhost:8091/ws";
+        const host = window.location.host;
+        const protocol = window.location.protocol;
+        const wsProtocol = protocol === "https:" ? "wss:" : "ws:";
+        
+        const apiUrl = `${protocol}//${host}/api/v1/conversations`;
+        const wsUrl = `${wsProtocol}//${host}/api/v1/ws`;
+        const mediaUrl = `${protocol}//${host}/api/v1/media/upload`;
+        
         // Получение тестового токена
         async function getToken(userId) {
-            const res = await fetch(`http://localhost:8091/api/test/token?user_id=${userId}`);
+            const res = await fetch(`${protocol}//${host}/api/v1/test/token?user_id=${userId}`);
             if (!res.ok) throw new Error("Failed to fetch token");
             return await res.text();
         }
 
         // 1. Создание комнаты (POST HTTP)
         async function createRoom() {
-            const myId = parseInt(document.getElementById("myUserId").value);
-            const targetId = parseInt(document.getElementById("targetUserId").value);
+            const myId = document.getElementById("myUserId").value;
+            const targetId = document.getElementById("targetUserId").value;
             
             try {
                 const token = await getToken(myId);
@@ -132,35 +145,117 @@
                 appendMessage("Подключено к комнате " + roomId, "system");
                 document.getElementById("msg").disabled = false;
                 document.getElementById("sendBtn").disabled = false;
+                document.getElementById("uploadBtn").disabled = false;
             };
             
             ws.onmessage = function(event) {
                 const message = JSON.parse(event.data);
-                appendMessage("User " + message.sender_id + ": " + message.content, "message");
+                
+                let content = "User " + message.sender_id + ": ";
+                
+                // Экранируем текст для безопасности (простая защита)
+                let safeText = message.content.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                content += safeText;
+                
+                if (message.attachments && message.attachments.length > 0) {
+                    content += `<div style="margin-top: 5px;">`;
+                    message.attachments.forEach(att => {
+                        content += `<a href="${att.url}" target="_blank" style="margin-right: 10px; display: inline-block; padding: 5px; background: #eee; border-radius: 4px; text-decoration: none;">🖼️ Вложение</a>`;
+                    });
+                    content += `</div>`;
+                } else if (message.content.includes("/media/")) {
+                    // Резервный вариант, если кто-то прислал старый формат ссылки текстом
+                    const urlRegex = /(http[^\s]+)/g;
+                    content = content.replace(urlRegex, '<a href="$1" target="_blank">🔗 Ссылка</a>');
+                }
+                
+                appendMessage(content, "message", true);
             };
             
             ws.onclose = function() {
                 appendMessage("Отключено.", "system");
                 document.getElementById("msg").disabled = true;
                 document.getElementById("sendBtn").disabled = true;
+                document.getElementById("uploadBtn").disabled = true;
             };
             } catch (e) {
                 alert("Ошибка подключения к чату: " + e);
             }
         }
 
-        function sendMessage() {
-            const input = document.getElementById("msg");
-            if (ws && input.value) {
-                ws.send(JSON.stringify({ content: input.value }));
-                input.value = "";
+        let pendingAttachments = [];
+
+        function updateAttachmentsPreview() {
+            const preview = document.getElementById("attachmentsPreview");
+            if (pendingAttachments.length === 0) {
+                preview.innerHTML = "";
+            } else {
+                preview.innerHTML = `Прикреплено файлов: <b>${pendingAttachments.length}</b>`;
             }
         }
 
-        function appendMessage(text, className) {
+        function sendMessage() {
+            const input = document.getElementById("msg");
+            if (ws && (input.value || pendingAttachments.length > 0)) {
+                
+                const attachmentsPayload = pendingAttachments.map(url => ({ url: url }));
+                
+                ws.send(JSON.stringify({ 
+                    content: input.value,
+                    attachments: attachmentsPayload
+                }));
+                
+                input.value = "";
+                pendingAttachments = [];
+                updateAttachmentsPreview();
+            }
+        }
+
+        async function uploadMedia() {
+            const fileInput = document.getElementById("mediaFile");
+            if (!fileInput.files.length) return;
+            
+            const uploadBtn = document.getElementById("uploadBtn");
+            uploadBtn.innerText = "⏳...";
+            uploadBtn.disabled = true;
+
+            try {
+                // Загружаем файлы по очереди
+                for (let i = 0; i < fileInput.files.length; i++) {
+                    const file = fileInput.files[i];
+                    const formData = new FormData();
+                    formData.append("file", file);
+                    
+                    const res = await fetch(mediaUrl, {
+                        method: "POST",
+                        body: formData
+                    });
+                    
+                    if (res.ok) {
+                        const data = await res.json();
+                        pendingAttachments.push(data.url);
+                    } else {
+                        alert(`Ошибка загрузки ${file.name}: ` + await res.text());
+                    }
+                }
+                updateAttachmentsPreview();
+            } catch (e) {
+                alert("Ошибка загрузки: " + e);
+            }
+            
+            uploadBtn.innerText = "📎 Файлы";
+            uploadBtn.disabled = false;
+            fileInput.value = ""; // сброс
+        }
+
+        function appendMessage(text, className, isHTML = false) {
             const chat = document.getElementById("chat");
             const div = document.createElement("div");
-            div.textContent = text;
+            if (isHTML) {
+                div.innerHTML = text;
+            } else {
+                div.textContent = text;
+            }
             div.className = className;
             chat.appendChild(div);
             chat.scrollTop = chat.scrollHeight;
