@@ -1,0 +1,63 @@
+# Complete disposable CI configuration; application config is excluded from Docker images.
+server:
+  address: 127.0.0.1
+  port: 8082
+spring:
+  application:
+    name: bloom-users
+  datasource:
+    url: jdbc:postgresql://localhost:5432/bloom_users
+    username: bloom_users
+    password: ci-users-database-password
+    hikari:
+      maximum-pool-size: 10
+      connection-timeout: 5000
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
+  mvc:
+    problemdetails:
+      enabled: true
+  task:
+    scheduling:
+      pool:
+        size: 2
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      properties:
+        enable.idempotence: true
+        max.block.ms: 5000
+        delivery.timeout.ms: 10000
+        request.timeout.ms: 5000
+bloom:
+  internal-token: ci-users-internal-token-at-least-32-characters
+  identity:
+    url: http://127.0.0.1:9
+    token: ci-identity-internal-token-at-least-32-characters
+  media:
+    url: http://127.0.0.1:9
+    token: ci-media-internal-token-at-least-32-characters
+  events:
+    topic: bloom.users.v1
+    scheduling-enabled: true
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,db
+logging:
+  structured:
+    format:
+      console: ecs

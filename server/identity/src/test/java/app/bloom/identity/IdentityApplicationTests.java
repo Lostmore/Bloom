@@ -140,6 +140,14 @@ class IdentityApplicationTests {
     }
 
     @Test
+    void readinessIsPublicButDoesNotExposeDatabaseDetails() throws Exception {
+        String response = http.perform(get("/actuator/health/readiness"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat(response).contains("UP").doesNotContain("jdbc", "components", "password");
+        http.perform(get("/actuator/env")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void reuseRevocationCommitsDespiteUnauthorizedResponse() throws Exception {
         Login account = register();
         AuthResponse rotated = refresh(account.tokens().refreshToken(), 200);
@@ -262,6 +270,34 @@ class IdentityApplicationTests {
                 .isInstanceOf(ResponseStatusException.class);
     }
 
+    @Test
+    void freshRateLimitKeysNeverStartInBackoff() {
+        for (int index = 0; index < 100; index++) {
+            protection.require("fresh", "key-" + index, 5, Duration.ofMinutes(1), false);
+        }
+    }
+
+    @Test
+    void internalAccountDeletionRevokesAllTokensAndIsIdempotent() throws Exception {
+        Login account = register();
+        java.util.UUID id = jdbc.sql("SELECT id FROM accounts WHERE phone_number = ?")
+                .param(account.phone()).query(java.util.UUID.class).single();
+        String endpoint = "/internal/identity/accounts/" + id;
+        http.perform(delete(endpoint).header("Authorization", bearer(account.tokens())))
+                .andExpect(status().isUnauthorized());
+        http.perform(delete(endpoint).header("X-Internal-Token", INTERNAL_TOKEN)).andExpect(status().isNoContent());
+        http.perform(delete(endpoint).header("X-Internal-Token", INTERNAL_TOKEN)).andExpect(status().isNoContent());
+        http.perform(get("/auth/me").header("Authorization", bearer(account.tokens())))
+                .andExpect(status().isUnauthorized());
+        refresh(account.tokens().refreshToken(), 401);
+        assertThat(accountsRemaining(id)).isZero();
+    }
+
+    private int accountsRemaining(java.util.UUID id) {
+        return jdbc.sql("SELECT count(*) FROM refresh_sessions WHERE account_id = ?")
+                .param(id).query(Integer.class).single();
+    }
+
     private Login register() throws Exception {
         String phone = "+" + PHONE.incrementAndGet();
         var response = http.perform(post("/auth/register").contentType(MediaType.APPLICATION_JSON)
@@ -288,6 +324,9 @@ class IdentityApplicationTests {
         return "Bearer " + response.accessToken();
     }
 
-    private record Login(String phone, AuthResponse tokens) {
+    private record Login(
+            String phone,
+            AuthResponse tokens
+    ) {
     }
 }

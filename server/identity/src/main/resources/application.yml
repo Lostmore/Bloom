@@ -3,11 +3,11 @@ spring:
     name: bloom-identity
 
   datasource:
-    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:bloom_identity}
-    username: ${DB_USER:bloom_identity}
-    password: ${DB_PASSWORD}
+    url: jdbc:postgresql://localhost:5432/bloom_identity
+    username: bloom_identity
+    password: "" # Пароль роли bloom_identity в PostgreSQL.
     hikari:
-      maximum-pool-size: ${DB_POOL_SIZE:10}
+      maximum-pool-size: 10
       connection-timeout: 5000
 
   jpa:
@@ -23,22 +23,36 @@ spring:
     locations: classpath:db/migration
 
 server:
-  address: ${SERVER_ADDRESS:127.0.0.1}
-  port: ${SERVER_PORT:8081}
+  address: 127.0.0.1
+  port: 8081
 
 bloom:
-  internal-token: ${INTERNAL_API_TOKEN}
+  internal-token: "" # Не менее 32 случайных символов; совпадает с bloom.identity.token в Users.
   jwt:
-    private-key: ${JWT_PRIVATE_KEY}
-    public-key: ${JWT_PUBLIC_KEY}
-    access-token-ttl: ${JWT_ACCESS_TTL:15m}
-    refresh-token-ttl: ${JWT_REFRESH_TTL:30d}
+    private-key: "" # PEM PKCS#8. Для нескольких строк используй YAML-блок |.
+    public-key: "" # PEM X.509 от той же пары ключей.
+    access-token-ttl: 15m
+    refresh-token-ttl: 30d
 
   security:
     argon2:
-      memory: ${ARGON2_MEMORY:65536}
-      iterations: ${ARGON2_ITERATIONS:3}
-      parallelism: ${ARGON2_PARALLELISM:1}
+      memory: 65536
+      iterations: 3
+      parallelism: 1
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,db
 
 logging:
   level:

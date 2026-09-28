@@ -1,0 +1,10 @@
+# Disposable CI credentials. Never use this override on a real server.
+services:
+  postgres:
+    environment:
+      POSTGRES_PASSWORD: ci-users-admin-password
+      BLOOM_DATABASE_PASSWORD: ci-users-database-password
+  users:
+    image: bloom-users:ci
+    volumes:
+      - ./src/test/resources/container/application.yml:/app/config/application.yml:ro

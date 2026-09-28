@@ -27,13 +27,21 @@ public class InternalIdentityController {
         this.accounts = accounts;
     }
 
-    public record TokenRequest(@NotBlank @Size(max = 4096) String token) {
+    public record TokenRequest(
+            @NotBlank @Size(max = 4096) String token
+    ) {
     }
 
-    public record TokenStatus(boolean active, UUID accountId, UUID familyId) {
+    public record TokenStatus(
+            boolean active,
+            UUID accountId,
+            UUID familyId
+    ) {
     }
 
-    public record AccountsRequest(@NotNull @Size(max = 200) Set<@NotNull UUID> userIds) {
+    public record AccountsRequest(
+            @NotNull @Size(max = 200) Set<@NotNull UUID> userIds
+    ) {
     }
 
     @PostMapping("/internal/identity/introspect")

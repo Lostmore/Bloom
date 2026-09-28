@@ -5,6 +5,9 @@ server:
 spring:
   application:
     name: bloom-api-gateway
+  web:
+    resources:
+      add-mappings: false
   cloud:
     gateway:
       server:
@@ -28,11 +31,7 @@ spring:
             - id: users
               uri: ${USERS_URL:http://localhost:8082}
               predicates:
-                - Path=/api/v1/users/**,/api/v1/reports
-            - id: profile
-              uri: ${PROFILE_URL:http://localhost:8085}
-              predicates:
-                - Path=/api/v1/profiles/**,/api/v1/interests
+                - Path=/api/v1/users/**,/api/v1/reports,/api/v1/interests
             - id: interactions
               uri: ${INTERACTIONS_URL:http://localhost:8083}
               predicates:
@@ -45,6 +44,13 @@ spring:
               uri: ${CHAT_WS_URL:ws://localhost:8091}
               predicates:
                 - Path=/api/v1/ws
+            - id: chat-rooms
+              uri: ${CHAT_URL:http://localhost:8091}
+              predicates:
+                - Path=/api/v1/conversations
+                - Method=GET,POST
+              filters:
+                - SetPath=/api/rooms
             - id: chat
               uri: ${CHAT_URL:http://localhost:8091}
               predicates:
@@ -61,3 +67,18 @@ spring:
               uri: ${NOTIFICATIONS_URL:http://localhost:8094}
               predicates:
                 - Path=/api/v1/notifications/**
+
+bloom:
+  api-docs:
+    enabled: ${API_DOCS_ENABLED:true}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true

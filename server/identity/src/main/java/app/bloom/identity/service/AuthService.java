@@ -132,7 +132,13 @@ public class AuthService {
         audit.record(accountId, "LOGOUT_ALL", accountId);
     }
 
-    public record SessionView(UUID id, String device, String ip, Instant createdAt, Instant expiresAt) {
+    public record SessionView(
+            UUID id,
+            String device,
+            String ip,
+            Instant createdAt,
+            Instant expiresAt
+    ) {
     }
 
     @Transactional(readOnly = true)
