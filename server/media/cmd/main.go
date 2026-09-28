@@ -20,6 +20,13 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// @title           Bloom Media API
+// @version         1.0
+// @description     Микросервис для работы с медиа-файлами в Bloom
+// @BasePath        /api/v1
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
 func main() {
 	_ = godotenv.Load()
 	brokers := []string{os.Getenv("KAFKA_BROKER")}
@@ -74,6 +81,10 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/media/upload", handler.Upload)
 	mux.HandleFunc("/media/", handler.ServeMedia)
+	mux.HandleFunc("/openapi.json", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		http.ServeFile(w, r, "docs/swagger.json")
+	})
 
 	consumer := kafka.NewConsumer(brokers, "media.message_saved", "media-group", svc)
 	go consumer.Start(ctx)

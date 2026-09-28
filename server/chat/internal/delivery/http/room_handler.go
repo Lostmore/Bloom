@@ -23,7 +23,19 @@ func NewRoomHandler(svc *service.MessageService) *RoomHandler {
 	return &RoomHandler{Service: svc}
 }
 
-// Обработчик для POST /api/rooms
+// CreateRoom godoc
+// @Summary      Создать комнату
+// @Description  Создает новую комнату чата с выбранным пользователем
+// @Tags         rooms
+// @Accept       json
+// @Produce      json
+// @Param        request body CreateRoomRequest true "Данные для создания комнаты"
+// @Success      201  {object}  domain.Room "Созданная комната"
+// @Failure      400  {string}  string "Invalid request body"
+// @Failure      401  {string}  string "Authorization token invalid"
+// @Failure      500  {string}  string "Failed to create room"
+// @Security     BearerAuth
+// @Router       /rooms [post]
 func (h *RoomHandler) CreateRoom(w http.ResponseWriter, r *http.Request) {
 	var req CreateRoomRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -50,7 +62,16 @@ func (h *RoomHandler) CreateRoom(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Обработчик для POST /api/rooms?user_id
+// GetUserRooms godoc
+// @Summary      Получить список комнат
+// @Description  Возвращает список комнат, в которых состоит текущий пользователь
+// @Tags         rooms
+// @Produce      json
+// @Success      200  {array}   domain.Room "Список комнат"
+// @Failure      401  {string}  string "Authorization token invalid"
+// @Failure      500  {string}  string "Failed to get user rooms"
+// @Security     BearerAuth
+// @Router       /rooms [get]
 func (h *RoomHandler) GetUserRooms(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value(UserIDKey).(uuid.UUID)
 	if !ok {

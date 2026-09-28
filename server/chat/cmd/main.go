@@ -23,6 +23,13 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// @title           Bloom Chat API
+// @version         1.0
+// @description     Микросервис для работы с чатами в Bloom
+// @BasePath        /api/v1
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
 func main() {
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
@@ -100,6 +107,10 @@ func main() {
 			return
 		}
 		w.Write([]byte(tokenString))
+	})
+	http.HandleFunc("/openapi.json", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		http.ServeFile(w, r, "docs/swagger.json")
 	})
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		websocket.ServeWS(hub, validator, w, r)

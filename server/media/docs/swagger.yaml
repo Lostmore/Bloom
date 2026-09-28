@@ -1,0 +1,75 @@
+basePath: /api/v1
+info:
+  contact: {}
+  description: Микросервис для работы с медиа-файлами в Bloom
+  title: Bloom Media API
+  version: "1.0"
+paths:
+  /media/{id}:
+    get:
+      description: Отдает содержимое файла по его ID
+      parameters:
+      - description: ID медиа-файла
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/octet-stream
+      responses:
+        "200":
+          description: Содержимое файла
+          schema:
+            type: file
+        "400":
+          description: ID is required
+          schema:
+            type: string
+        "404":
+          description: File not found
+          schema:
+            type: string
+        "500":
+          description: Internal server error
+          schema:
+            type: string
+      summary: Скачать/Просмотреть медиа-файл
+      tags:
+      - media
+  /media/upload:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Загружает файл на сервер и делает его временным до подтверждения
+      parameters:
+      - description: Файл для загрузки
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'Пример: {\"url\": \"/api/v1/media/uuid\"}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Invalid file
+          schema:
+            type: string
+        "500":
+          description: Internal server error
+          schema:
+            type: string
+      summary: Загрузить медиа-файл
+      tags:
+      - media
+securityDefinitions:
+  BearerAuth:
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

@@ -19,7 +19,17 @@ func NewMediaHandler(svc *service.MediaService, hostUrl string) *MediaHandler {
 	return &MediaHandler{svc: svc, hostUrl: hostUrl}
 }
 
-// Upload принимает загрузку файла
+// Upload godoc
+// @Summary      Загрузить медиа-файл
+// @Description  Загружает файл на сервер и делает его временным до подтверждения
+// @Tags         media
+// @Accept       multipart/form-data
+// @Produce      json
+// @Param        file formData file true "Файл для загрузки"
+// @Success      200  {object}  map[string]string "Пример: {\"url\": \"/api/v1/media/uuid\"}"
+// @Failure      400  {string}  string "Invalid file"
+// @Failure      500  {string}  string "Internal server error"
+// @Router       /media/upload [post]
 func (h *MediaHandler) Upload(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -47,7 +57,17 @@ func (h *MediaHandler) Upload(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// ServeMedia отдает сам файл для просмотра (например, когда браузер запрашивает картинку)
+// ServeMedia godoc
+// @Summary      Скачать/Просмотреть медиа-файл
+// @Description  Отдает содержимое файла по его ID
+// @Tags         media
+// @Produce      application/octet-stream
+// @Param        id path string true "ID медиа-файла"
+// @Success      200  {file}    file "Содержимое файла"
+// @Failure      400  {string}  string "ID is required"
+// @Failure      404  {string}  string "File not found"
+// @Failure      500  {string}  string "Internal server error"
+// @Router       /media/{id} [get]
 func (h *MediaHandler) ServeMedia(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)

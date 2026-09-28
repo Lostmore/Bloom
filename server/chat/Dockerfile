@@ -10,6 +10,7 @@ WORKDIR /app
 COPY --from=builder /app/chat-server .
 COPY --from=builder /app/migrations ./migrations
 COPY --from=builder /app/tools ./tools
+COPY --from=builder /app/docs ./docs
 # Открываем порт
 EXPOSE 8091
 CMD ["./chat-server"]

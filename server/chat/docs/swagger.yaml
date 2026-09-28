@@ -1,0 +1,92 @@
+basePath: /api/v1
+definitions:
+  domain.Room:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: integer
+      is_active:
+        type: boolean
+      user1_id:
+        type: string
+      user2_id:
+        type: string
+    type: object
+  http.CreateRoomRequest:
+    properties:
+      user2_id:
+        type: string
+    type: object
+info:
+  contact: {}
+  description: Микросервис для работы с чатами в Bloom
+  title: Bloom Chat API
+  version: "1.0"
+paths:
+  /rooms:
+    get:
+      description: Возвращает список комнат, в которых состоит текущий пользователь
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Список комнат
+          schema:
+            items:
+              $ref: '#/definitions/domain.Room'
+            type: array
+        "401":
+          description: Authorization token invalid
+          schema:
+            type: string
+        "500":
+          description: Failed to get user rooms
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Получить список комнат
+      tags:
+      - rooms
+    post:
+      consumes:
+      - application/json
+      description: Создает новую комнату чата с выбранным пользователем
+      parameters:
+      - description: Данные для создания комнаты
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/http.CreateRoomRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Созданная комната
+          schema:
+            $ref: '#/definitions/domain.Room'
+        "400":
+          description: Invalid request body
+          schema:
+            type: string
+        "401":
+          description: Authorization token invalid
+          schema:
+            type: string
+        "500":
+          description: Failed to create room
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Создать комнату
+      tags:
+      - rooms
+securityDefinitions:
+  BearerAuth:
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
