@@ -9,6 +9,7 @@ FROM alpine:latest
 WORKDIR /app
 COPY --from=builder /app/chat-server .
 COPY --from=builder /app/migrations ./migrations
+COPY --from=builder /app/tools ./tools
 # Открываем порт
 EXPOSE 8091
 CMD ["./chat-server"]

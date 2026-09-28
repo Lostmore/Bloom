@@ -38,10 +38,15 @@
     <div class="main">
         <h2 id="chatTitle">Выберите чат</h2>
         <div id="chat"></div>
-        <input type="text" id="msg" placeholder="Напишите сообщение..." disabled style="width: calc(100% - 220px);">
-        <input type="file" id="mediaFile" style="display:none;" onchange="uploadMedia()">
-        <button id="uploadBtn" onclick="document.getElementById('mediaFile').click()" disabled>📎 Файл</button>
-        <button id="sendBtn" onclick="sendMessage()" disabled>Отправить</button>
+        
+        <div id="attachmentsPreview" style="margin-bottom: 5px; font-size: 0.9em; color: #555;"></div>
+        
+        <div style="display: flex; gap: 5px;">
+            <input type="text" id="msg" placeholder="Напишите сообщение..." disabled style="flex-grow: 1;">
+            <input type="file" id="mediaFile" multiple style="display:none;" onchange="uploadMedia()">
+            <button id="uploadBtn" onclick="document.getElementById('mediaFile').click()" disabled>📎 Файлы</button>
+            <button id="sendBtn" onclick="sendMessage()" disabled>Отправить</button>
+        </div>
     </div>
 
     <script>
@@ -49,12 +54,17 @@
         let currentRoomId = null;
         
         // ВАЖНО: Убедись, что эти порты совпадают с твоим main.go
-        const apiUrl = "http://localhost:8080/api/v1/conversations";
-        const wsUrl = "ws://localhost:8080/api/v1/ws";
-        const mediaUrl = "http://localhost:8080/api/v1/media/upload";
+        const host = window.location.host;
+        const protocol = window.location.protocol;
+        const wsProtocol = protocol === "https:" ? "wss:" : "ws:";
+        
+        const apiUrl = `${protocol}//${host}/api/v1/conversations`;
+        const wsUrl = `${wsProtocol}//${host}/api/v1/ws`;
+        const mediaUrl = `${protocol}//${host}/api/v1/media/upload`;
+        
         // Получение тестового токена
         async function getToken(userId) {
-            const res = await fetch(`http://localhost:8080/api/v1/test/token?user_id=${userId}`);
+            const res = await fetch(`${protocol}//${host}/api/v1/test/token?user_id=${userId}`);
             if (!res.ok) throw new Error("Failed to fetch token");
             return await res.text();
         }
@@ -140,11 +150,25 @@
             
             ws.onmessage = function(event) {
                 const message = JSON.parse(event.data);
-                // Простая проверка, если это ссылка на медиа - покажем картинку, если возможно
-                let content = "User " + message.sender_id + ": " + message.content;
-                if (message.content.includes("/media/")) {
-                    content += `<br><a href="${message.content}" target="_blank">🖼️ Открыть медиа</a>`;
+                
+                let content = "User " + message.sender_id + ": ";
+                
+                // Экранируем текст для безопасности (простая защита)
+                let safeText = message.content.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                content += safeText;
+                
+                if (message.attachments && message.attachments.length > 0) {
+                    content += `<div style="margin-top: 5px;">`;
+                    message.attachments.forEach(att => {
+                        content += `<a href="${att.url}" target="_blank" style="margin-right: 10px; display: inline-block; padding: 5px; background: #eee; border-radius: 4px; text-decoration: none;">🖼️ Вложение</a>`;
+                    });
+                    content += `</div>`;
+                } else if (message.content.includes("/media/")) {
+                    // Резервный вариант, если кто-то прислал старый формат ссылки текстом
+                    const urlRegex = /(http[^\s]+)/g;
+                    content = content.replace(urlRegex, '<a href="$1" target="_blank">🔗 Ссылка</a>');
                 }
+                
                 appendMessage(content, "message", true);
             };
             
@@ -159,36 +183,68 @@
             }
         }
 
+        let pendingAttachments = [];
+
+        function updateAttachmentsPreview() {
+            const preview = document.getElementById("attachmentsPreview");
+            if (pendingAttachments.length === 0) {
+                preview.innerHTML = "";
+            } else {
+                preview.innerHTML = `Прикреплено файлов: <b>${pendingAttachments.length}</b>`;
+            }
+        }
+
         function sendMessage() {
             const input = document.getElementById("msg");
-            if (ws && input.value) {
-                ws.send(JSON.stringify({ content: input.value }));
+            if (ws && (input.value || pendingAttachments.length > 0)) {
+                
+                const attachmentsPayload = pendingAttachments.map(url => ({ url: url }));
+                
+                ws.send(JSON.stringify({ 
+                    content: input.value,
+                    attachments: attachmentsPayload
+                }));
+                
                 input.value = "";
+                pendingAttachments = [];
+                updateAttachmentsPreview();
             }
         }
 
         async function uploadMedia() {
             const fileInput = document.getElementById("mediaFile");
             if (!fileInput.files.length) return;
-            const file = fileInput.files[0];
-            const formData = new FormData();
-            formData.append("file", file);
             
+            const uploadBtn = document.getElementById("uploadBtn");
+            uploadBtn.innerText = "⏳...";
+            uploadBtn.disabled = true;
+
             try {
-                // Если нужна авторизация в media API - добавить здесь
-                const res = await fetch(mediaUrl, {
-                    method: "POST",
-                    body: formData
-                });
-                if (res.ok) {
-                    const data = await res.json();
-                    document.getElementById("msg").value += (document.getElementById("msg").value ? " " : "") + data.url;
-                } else {
-                    alert("Ошибка загрузки: " + await res.text());
+                // Загружаем файлы по очереди
+                for (let i = 0; i < fileInput.files.length; i++) {
+                    const file = fileInput.files[i];
+                    const formData = new FormData();
+                    formData.append("file", file);
+                    
+                    const res = await fetch(mediaUrl, {
+                        method: "POST",
+                        body: formData
+                    });
+                    
+                    if (res.ok) {
+                        const data = await res.json();
+                        pendingAttachments.push(data.url);
+                    } else {
+                        alert(`Ошибка загрузки ${file.name}: ` + await res.text());
+                    }
                 }
+                updateAttachmentsPreview();
             } catch (e) {
-                alert("Ошибка: " + e);
+                alert("Ошибка загрузки: " + e);
             }
+            
+            uploadBtn.innerText = "📎 Файлы";
+            uploadBtn.disabled = false;
             fileInput.value = ""; // сброс
         }
 

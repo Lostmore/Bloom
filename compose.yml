@@ -50,7 +50,7 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_LOG_DIRS: /var/lib/kafka/data
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'false'
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
     volumes:
       - kafka-data:/var/lib/kafka/data
     healthcheck:
@@ -144,6 +144,7 @@ services:
       context: ./server/chat
     environment:
       DATABASE_URL: postgres://bloom_chat:CHANGE_ME@postgres:5432/bloom_chat?sslmode=disable
+      KAFKA_BROKER: kafka:9092
     depends_on:
       postgres:
         condition: service_healthy
@@ -168,7 +169,8 @@ services:
       context: ./server/media
     environment:
       DATABASE_URL: postgres://bloom_media:CHANGE_ME@postgres:5432/bloom_media?sslmode=disable
-      HOST_URL: http://localhost:8080/api/v1
+      HOST_URL: /api/v1
+      KAFKA_BROKER: kafka:9092
     depends_on:
       postgres:
         condition: service_healthy
@@ -203,7 +205,7 @@ services:
       - --DISCOVERY_URL=http://discovery:8092
       - --MEDIA_URL=http://media:8093
       - --NOTIFICATIONS_URL=http://notifications:8094
-      - --bloom.api-docs.enabled=false
+      - --bloom.api-docs.enabled=true
     depends_on:
       identity:
         condition: service_healthy
@@ -212,7 +214,7 @@ services:
       chat:
         condition: service_healthy
     ports:
-      - '127.0.0.1:8080:8080'
+      - '8080:8080'
     networks: [edge, backend]
     healthcheck:
       test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8080/actuator/health/readiness"]

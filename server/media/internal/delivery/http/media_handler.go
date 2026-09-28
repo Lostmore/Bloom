@@ -2,6 +2,7 @@ package http
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -66,5 +67,9 @@ func (h *MediaHandler) ServeMedia(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+
+	w.Header().Set("Content-Type", mediaFile.MimeType)
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`inline; filename="%s"`, mediaFile.OriginalName))
+
 	http.ServeFile(w, r, filePath)
 }

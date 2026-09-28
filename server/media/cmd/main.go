@@ -22,7 +22,10 @@ import (
 
 func main() {
 	_ = godotenv.Load()
-	brokers := []string{"localhost:9092"}
+	brokers := []string{os.Getenv("KAFKA_BROKER")}
+	if brokers[0] == "" {
+		brokers = []string{"localhost:9092"}
+	}
 	ctx := context.Background()
 	dsn := os.Getenv("DATABASE_URL")
 	if dsn == "" {
