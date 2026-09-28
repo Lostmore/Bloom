@@ -96,6 +96,8 @@ services:
     command:
       - --server.address=0.0.0.0
       - --spring.datasource.url=jdbc:postgresql://postgres:5432/bloom_identity
+    ports:
+      - '127.0.0.1:8081:8081'
     depends_on:
       postgres:
         condition: service_healthy
