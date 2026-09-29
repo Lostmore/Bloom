@@ -140,6 +140,7 @@ services:
     environment:
       DATABASE_URL: postgres://bloom_chat:CHANGE_ME@postgres:5432/bloom_chat?sslmode=disable
       KAFKA_BROKER: kafka:9092
+      IDENTITY_URL: http://identity:8081
     depends_on:
       postgres:
         condition: service_healthy
@@ -166,6 +167,7 @@ services:
       DATABASE_URL: postgres://bloom_media:CHANGE_ME@postgres:5432/bloom_media?sslmode=disable
       HOST_URL: /api/v1
       KAFKA_BROKER: kafka:9092
+      IDENTITY_URL: http://identity:8081
     depends_on:
       postgres:
         condition: service_healthy

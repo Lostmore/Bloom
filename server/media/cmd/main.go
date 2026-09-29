@@ -16,6 +16,7 @@ import (
 	httpDelivery "bloom.local/media/internal/delivery/http"
 	"bloom.local/media/internal/repository/postgres"
 	"bloom.local/media/internal/service"
+	"bloom.local/media/internal/pkg/auth"
 	"bloom.local/media/internal/worker"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -75,8 +76,15 @@ func main() {
 	svc := service.NewMediaService(repo)
 	handler := httpDelivery.NewMediaHandler(svc, hostUrl)
 
+	identityURL := os.Getenv("IDENTITY_URL")
+	if identityURL == "" {
+		identityURL = "http://identity:8081"
+	}
+	internalToken := os.Getenv("INTERNAL_TOKEN")
+	validator := auth.NewRemoteTokenValidator(identityURL, internalToken)
+
 	mux := http.NewServeMux()
-	mux.HandleFunc("/media/upload", handler.Upload)
+	mux.HandleFunc("/media/upload", httpDelivery.AuthMiddleware(validator, handler.Upload))
 	mux.HandleFunc("/media/", handler.ServeMedia)
 	mux.HandleFunc("GET /openapi.json", docs.Handler)
 
