@@ -64,6 +64,24 @@ public class VisibilityService {
         return identity.active(ids).containsAll(ids);
     }
 
+    public Set<UUID> allowedTargets(UUID viewer, Set<UUID> targets) {
+        Set<UUID> ids = new HashSet<>(targets);
+        ids.add(viewer);
+        Set<UUID> existing = new HashSet<>();
+        repository.findAll(ids).stream().filter(profile -> !profile.deleted())
+                .forEach(profile -> existing.add(profile.id()));
+        if (!existing.contains(viewer)) {
+            return Set.of();
+        }
+        existing.retainAll(identity.active(ids));
+        if (!existing.contains(viewer)) {
+            return Set.of();
+        }
+        existing.remove(viewer);
+        existing.removeAll(safety.blockedTargets(viewer, targets));
+        return Set.copyOf(existing);
+    }
+
     public boolean canViewPhoto(UUID viewer, UUID owner, UUID mediaId) {
         try {
             return view(viewer, owner).photos().contains(mediaId);
