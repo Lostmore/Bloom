@@ -2,6 +2,7 @@ package app.bloom.users.controller;
 
 import app.bloom.users.dto.AccessResponse;
 import app.bloom.users.dto.InteractionAccessRequest;
+import app.bloom.users.dto.InteractionBatchRequest;
 import app.bloom.users.dto.PhotoAccessRequest;
 import app.bloom.users.dto.ProfileBatchRequest;
 import app.bloom.users.dto.PublicProfile;
@@ -9,6 +10,7 @@ import app.bloom.users.model.Profile;
 import app.bloom.users.service.VisibilityService;
 import jakarta.validation.Valid;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -29,6 +31,11 @@ public class InternalUsersController {
     @PostMapping("/can-interact")
     public AccessResponse canInteract(@Valid @RequestBody InteractionAccessRequest request) {
         return new AccessResponse(visibility.canInteract(request.viewerId(), request.targetId()));
+    }
+
+    @PostMapping("/can-interact-batch")
+    public Set<UUID> canInteractBatch(@Valid @RequestBody InteractionBatchRequest request) {
+        return visibility.allowedTargets(request.viewerId(), request.targetIds());
     }
 
     @PostMapping("/profiles")
