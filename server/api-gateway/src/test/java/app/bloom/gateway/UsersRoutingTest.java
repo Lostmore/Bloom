@@ -43,6 +43,7 @@ class UsersRoutingTest {
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
         registry.add("USERS_URL", () -> "http://127.0.0.1:" + USERS.getAddress().getPort());
+        registry.add("INTERACTIONS_URL", () -> "http://127.0.0.1:" + USERS.getAddress().getPort());
     }
 
     @AfterAll
@@ -51,7 +52,7 @@ class UsersRoutingTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"/users/me", "/interests", "/reports"})
+    @ValueSource(strings = {"/users/me", "/interests", "/reports", "/matches", "/matches/123"})
     void usersRoutesStripPrefixAndUntrustedIdentityHeaders(String path) {
         http.get().uri("/api/v1" + path)
                 .header("Authorization", "Bearer client-token")
@@ -63,5 +64,15 @@ class UsersRoutingTest {
     @Test
     void internalApiIsNotRouted() {
         http.get().uri("/api/v1/internal/users/can-interact").exchange().expectStatus().isNotFound();
+        http.post().uri("/api/v1/internal/interactions/can-access-match").exchange().expectStatus().isNotFound();
+    }
+
+    @Test
+    void reactionsReachTheInteractionsService() {
+        http.post().uri("/api/v1/interactions/123/like")
+                .header("Authorization", "Bearer client-token")
+                .header("Idempotency-Key", java.util.UUID.randomUUID().toString())
+                .header("X-Internal-Token", "untrusted-service-token")
+                .exchange().expectStatus().isOk().expectBody(String.class).isEqualTo("/interactions/123/like");
     }
 }

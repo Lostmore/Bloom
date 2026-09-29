@@ -11,6 +11,22 @@ import org.junit.jupiter.api.Test;
 
 class SafetyApiTest extends UsersIntegrationTest {
     @Test
+    void interactionBatchExcludesSelfBlockedAndInactiveProfiles() throws Exception {
+        UUID viewer = user();
+        UUID allowed = user();
+        UUID blocked = user();
+        UUID inactive = user();
+        response(as(post("/users/" + viewer + "/block"), blocked), 204);
+        ACTIVE.remove(inactive);
+        String body = json.writeValueAsString(java.util.Map.of("viewerId", viewer,
+                "targetIds", java.util.Set.of(viewer, allowed, blocked, inactive, UUID.randomUUID())));
+        response(as(post("/internal/users/can-interact-batch"), viewer).content(body), 401);
+        var result = response(internal(post("/internal/users/can-interact-batch")).content(body), 200);
+        assertThat(result.size()).isEqualTo(1);
+        assertThat(result.get(0).asText()).isEqualTo(allowed.toString());
+    }
+
+    @Test
     void blockIsMutualIdempotentAndOnlyOwnerCanRemoveIt() throws Exception {
         UUID first = user();
         UUID second = user();

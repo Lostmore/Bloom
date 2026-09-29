@@ -1,5 +1,5 @@
 window.BLOOM_ARCHITECTURE = {
-  "commit": "e7a7ccf",
+  "commit": "7c37dd1",
   "nodes": [
     {
       "id": "api-gateway",
@@ -615,7 +615,18 @@ window.BLOOM_ARCHITECTURE = {
           "internal": true,
           "source": {
             "file": "server/users/src/main/java/app/bloom/users/controller/InternalUsersController.java",
-            "line": 29,
+            "line": 31,
+            "found": true
+          },
+          "origin": "Spring mapping"
+        },
+        {
+          "method": "POST",
+          "path": "/internal/users/can-interact-batch",
+          "internal": true,
+          "source": {
+            "file": "server/users/src/main/java/app/bloom/users/controller/InternalUsersController.java",
+            "line": 36,
             "found": true
           },
           "origin": "Spring mapping"
@@ -626,7 +637,7 @@ window.BLOOM_ARCHITECTURE = {
           "internal": true,
           "source": {
             "file": "server/users/src/main/java/app/bloom/users/controller/InternalUsersController.java",
-            "line": 34,
+            "line": 41,
             "found": true
           },
           "origin": "Spring mapping"
@@ -637,7 +648,7 @@ window.BLOOM_ARCHITECTURE = {
           "internal": true,
           "source": {
             "file": "server/users/src/main/java/app/bloom/users/controller/InternalUsersController.java",
-            "line": 39,
+            "line": 46,
             "found": true
           },
           "origin": "Spring mapping"
@@ -648,7 +659,7 @@ window.BLOOM_ARCHITECTURE = {
           "internal": true,
           "source": {
             "file": "server/users/src/main/java/app/bloom/users/controller/InternalUsersController.java",
-            "line": 44,
+            "line": 51,
             "found": true
           },
           "origin": "Spring mapping"
@@ -1003,6 +1014,14 @@ window.BLOOM_ARCHITECTURE = {
             }
           },
           {
+            "name": "InteractionBatchRequest.java",
+            "source": {
+              "file": "server/users/src/main/java/app/bloom/users/dto/InteractionBatchRequest.java",
+              "line": 1,
+              "found": true
+            }
+          },
+          {
             "name": "MediaPhotoValidationRequest.java",
             "source": {
               "file": "server/users/src/main/java/app/bloom/users/dto/MediaPhotoValidationRequest.java",
@@ -1344,7 +1363,7 @@ window.BLOOM_ARCHITECTURE = {
           }
         ]
       },
-      "files": 56,
+      "files": 57,
       "source": {
         "file": "compose.yml",
         "line": 106,
@@ -1369,21 +1388,252 @@ window.BLOOM_ARCHITECTURE = {
       "id": "interactions",
       "title": "Interactions",
       "type": "java",
-      "state": "stub",
+      "state": "implemented",
       "port": 8083,
-      "description": "Заготовка сервиса взаимодействий и совпадений.",
+      "description": "LIKE, SKIP, SUPER_INTEREST, взаимные матчи и unmatch. Проверка сессии в Identity, разрешений в Users; PostgreSQL и Kafka outbox.",
       "published": [],
       "inCompose": true,
-      "profiles": [
-        "stubs"
+      "profiles": [],
+      "endpoints": [
+        {
+          "method": "POST",
+          "path": "/interactions/{userId}/like",
+          "internal": false,
+          "source": {
+            "file": "server/interactions/src/main/java/app/bloom/interactions/controller/InteractionController.java",
+            "line": 23,
+            "found": true
+          },
+          "origin": "Spring mapping"
+        },
+        {
+          "method": "POST",
+          "path": "/interactions/{userId}/skip",
+          "internal": false,
+          "source": {
+            "file": "server/interactions/src/main/java/app/bloom/interactions/controller/InteractionController.java",
+            "line": 29,
+            "found": true
+          },
+          "origin": "Spring mapping"
+        },
+        {
+          "method": "POST",
+          "path": "/interactions/{userId}/super-interest",
+          "internal": false,
+          "source": {
+            "file": "server/interactions/src/main/java/app/bloom/interactions/controller/InteractionController.java",
+            "line": 35,
+            "found": true
+          },
+          "origin": "Spring mapping"
+        },
+        {
+          "method": "POST",
+          "path": "/internal/interactions/can-access-match",
+          "internal": true,
+          "source": {
+            "file": "server/interactions/src/main/java/app/bloom/interactions/controller/InternalInteractionsController.java",
+            "line": 27,
+            "found": true
+          },
+          "origin": "Spring mapping"
+        },
+        {
+          "method": "POST",
+          "path": "/internal/interactions/exclusions",
+          "internal": true,
+          "source": {
+            "file": "server/interactions/src/main/java/app/bloom/interactions/controller/InternalInteractionsController.java",
+            "line": 32,
+            "found": true
+          },
+          "origin": "Spring mapping"
+        },
+        {
+          "method": "GET",
+          "path": "/matches",
+          "internal": false,
+          "source": {
+            "file": "server/interactions/src/main/java/app/bloom/interactions/controller/MatchController.java",
+            "line": 26,
+            "found": true
+          },
+          "origin": "Spring mapping"
+        },
+        {
+          "method": "GET",
+          "path": "/matches/{id}",
+          "internal": false,
+          "source": {
+            "file": "server/interactions/src/main/java/app/bloom/interactions/controller/MatchController.java",
+            "line": 32,
+            "found": true
+          },
+          "origin": "Spring mapping"
+        },
+        {
+          "method": "DELETE",
+          "path": "/matches/{id}",
+          "internal": false,
+          "source": {
+            "file": "server/interactions/src/main/java/app/bloom/interactions/controller/MatchController.java",
+            "line": 37,
+            "found": true
+          },
+          "origin": "Spring mapping"
+        }
       ],
-      "endpoints": [],
       "layers": {
+        "client": [
+          {
+            "name": "IdentityClient.java",
+            "source": {
+              "file": "server/interactions/src/main/java/app/bloom/interactions/client/IdentityClient.java",
+              "line": 1,
+              "found": true
+            }
+          },
+          {
+            "name": "ServiceHttp.java",
+            "source": {
+              "file": "server/interactions/src/main/java/app/bloom/interactions/client/ServiceHttp.java",
+              "line": 1,
+              "found": true
+            }
+          },
+          {
+            "name": "UsersClient.java",
+            "source": {
+              "file": "server/interactions/src/main/java/app/bloom/interactions/client/UsersClient.java",
+              "line": 1,
+              "found": true
+            }
+          }
+        ],
         "config": [
+          {
+            "name": "KafkaConfiguration.java",
+            "source": {
+              "file": "server/interactions/src/main/java/app/bloom/interactions/config/KafkaConfiguration.java",
+              "line": 1,
+              "found": true
+            }
+          },
           {
             "name": "OpenApiConfiguration.java",
             "source": {
               "file": "server/interactions/src/main/java/app/bloom/interactions/config/OpenApiConfiguration.java",
+              "line": 1,
+              "found": true
+            }
+          }
+        ],
+        "controller": [
+          {
+            "name": "InteractionController.java",
+            "source": {
+              "file": "server/interactions/src/main/java/app/bloom/interactions/controller/InteractionController.java",
+              "line": 1,
+              "found": true
+            }
+          },
+          {
+            "name": "InternalInteractionsController.java",
+            "source": {
+              "file": "server/interactions/src/main/java/app/bloom/interactions/controller/InternalInteractionsController.java",
+              "line": 1,
+              "found": true
+            }
+          },
+          {
+            "name": "MatchController.java",
+            "source": {
+              "file": "server/interactions/src/main/java/app/bloom/interactions/controller/MatchController.java",
+              "line": 1,
+              "found": true
+            }
+          }
+        ],
+        "dto": [
+          {
+            "name": "AccessResponse.java",
+            "source": {
+              "file": "server/interactions/src/main/java/app/bloom/interactions/dto/AccessResponse.java",
+              "line": 1,
+              "found": true
+            }
+          },
+          {
+            "name": "ExclusionsRequest.java",
+            "source": {
+              "file": "server/interactions/src/main/java/app/bloom/interactions/dto/ExclusionsRequest.java",
+              "line": 1,
+              "found": true
+            }
+          },
+          {
+            "name": "InteractionResponse.java",
+            "source": {
+              "file": "server/interactions/src/main/java/app/bloom/interactions/dto/InteractionResponse.java",
+              "line": 1,
+              "found": true
+            }
+          },
+          {
+            "name": "MatchAccessRequest.java",
+            "source": {
+              "file": "server/interactions/src/main/java/app/bloom/interactions/dto/MatchAccessRequest.java",
+              "line": 1,
+              "found": true
+            }
+          },
+          {
+            "name": "MatchPage.java",
+            "source": {
+              "file": "server/interactions/src/main/java/app/bloom/interactions/dto/MatchPage.java",
+              "line": 1,
+              "found": true
+            }
+          },
+          {
+            "name": "TokenStatusResponse.java",
+            "source": {
+              "file": "server/interactions/src/main/java/app/bloom/interactions/dto/TokenStatusResponse.java",
+              "line": 1,
+              "found": true
+            }
+          }
+        ],
+        "events": [
+          {
+            "name": "OutboxPublisher.java",
+            "source": {
+              "file": "server/interactions/src/main/java/app/bloom/interactions/events/OutboxPublisher.java",
+              "line": 1,
+              "found": true
+            }
+          },
+          {
+            "name": "OutboxSchedule.java",
+            "source": {
+              "file": "server/interactions/src/main/java/app/bloom/interactions/events/OutboxSchedule.java",
+              "line": 1,
+              "found": true
+            }
+          },
+          {
+            "name": "SafetyEventHandler.java",
+            "source": {
+              "file": "server/interactions/src/main/java/app/bloom/interactions/events/SafetyEventHandler.java",
+              "line": 1,
+              "found": true
+            }
+          },
+          {
+            "name": "SafetyEventListener.java",
+            "source": {
+              "file": "server/interactions/src/main/java/app/bloom/interactions/events/SafetyEventListener.java",
               "line": 1,
               "found": true
             }
@@ -1398,14 +1648,180 @@ window.BLOOM_ARCHITECTURE = {
               "found": true
             }
           }
+        ],
+        "model": [
+          {
+            "name": "Match.java",
+            "source": {
+              "file": "server/interactions/src/main/java/app/bloom/interactions/model/Match.java",
+              "line": 1,
+              "found": true
+            }
+          },
+          {
+            "name": "MatchEvent.java",
+            "source": {
+              "file": "server/interactions/src/main/java/app/bloom/interactions/model/MatchEvent.java",
+              "line": 1,
+              "found": true
+            }
+          },
+          {
+            "name": "MatchEventData.java",
+            "source": {
+              "file": "server/interactions/src/main/java/app/bloom/interactions/model/MatchEventData.java",
+              "line": 1,
+              "found": true
+            }
+          },
+          {
+            "name": "MatchStatus.java",
+            "source": {
+              "file": "server/interactions/src/main/java/app/bloom/interactions/model/MatchStatus.java",
+              "line": 1,
+              "found": true
+            }
+          },
+          {
+            "name": "Pair.java",
+            "source": {
+              "file": "server/interactions/src/main/java/app/bloom/interactions/model/Pair.java",
+              "line": 1,
+              "found": true
+            }
+          },
+          {
+            "name": "PendingEvent.java",
+            "source": {
+              "file": "server/interactions/src/main/java/app/bloom/interactions/model/PendingEvent.java",
+              "line": 1,
+              "found": true
+            }
+          },
+          {
+            "name": "Reaction.java",
+            "source": {
+              "file": "server/interactions/src/main/java/app/bloom/interactions/model/Reaction.java",
+              "line": 1,
+              "found": true
+            }
+          }
+        ],
+        "repository": [
+          {
+            "name": "EventRepository.java",
+            "source": {
+              "file": "server/interactions/src/main/java/app/bloom/interactions/repository/EventRepository.java",
+              "line": 1,
+              "found": true
+            }
+          },
+          {
+            "name": "MatchRepository.java",
+            "source": {
+              "file": "server/interactions/src/main/java/app/bloom/interactions/repository/MatchRepository.java",
+              "line": 1,
+              "found": true
+            }
+          },
+          {
+            "name": "PairRepository.java",
+            "source": {
+              "file": "server/interactions/src/main/java/app/bloom/interactions/repository/PairRepository.java",
+              "line": 1,
+              "found": true
+            }
+          },
+          {
+            "name": "RequestRepository.java",
+            "source": {
+              "file": "server/interactions/src/main/java/app/bloom/interactions/repository/RequestRepository.java",
+              "line": 1,
+              "found": true
+            }
+          }
+        ],
+        "security": [
+          {
+            "name": "AuthenticationFilter.java",
+            "source": {
+              "file": "server/interactions/src/main/java/app/bloom/interactions/security/AuthenticationFilter.java",
+              "line": 1,
+              "found": true
+            }
+          },
+          {
+            "name": "BoundedJsonRequest.java",
+            "source": {
+              "file": "server/interactions/src/main/java/app/bloom/interactions/security/BoundedJsonRequest.java",
+              "line": 1,
+              "found": true
+            }
+          },
+          {
+            "name": "CorrelationFilter.java",
+            "source": {
+              "file": "server/interactions/src/main/java/app/bloom/interactions/security/CorrelationFilter.java",
+              "line": 1,
+              "found": true
+            }
+          },
+          {
+            "name": "SecurityConfig.java",
+            "source": {
+              "file": "server/interactions/src/main/java/app/bloom/interactions/security/SecurityConfig.java",
+              "line": 1,
+              "found": true
+            }
+          }
+        ],
+        "service": [
+          {
+            "name": "InteractionService.java",
+            "source": {
+              "file": "server/interactions/src/main/java/app/bloom/interactions/service/InteractionService.java",
+              "line": 1,
+              "found": true
+            }
+          },
+          {
+            "name": "MatchLifecycle.java",
+            "source": {
+              "file": "server/interactions/src/main/java/app/bloom/interactions/service/MatchLifecycle.java",
+              "line": 1,
+              "found": true
+            }
+          },
+          {
+            "name": "MatchService.java",
+            "source": {
+              "file": "server/interactions/src/main/java/app/bloom/interactions/service/MatchService.java",
+              "line": 1,
+              "found": true
+            }
+          }
         ]
       },
-      "files": 2,
+      "files": 37,
       "source": {
         "file": "compose.yml",
         "line": 223,
         "found": true
       }
+    },
+    {
+      "id": "db-interactions",
+      "title": "bloom_interactions",
+      "type": "database",
+      "state": "implemented",
+      "description": "Отдельная база сервиса interactions в общем PostgreSQL-контейнере. Не отдельный сервер PostgreSQL.",
+      "source": {
+        "file": "compose.yml",
+        "line": 235,
+        "found": true
+      },
+      "endpoints": [],
+      "layers": {}
     },
     {
       "id": "activities",
@@ -1445,7 +1861,7 @@ window.BLOOM_ARCHITECTURE = {
       "files": 2,
       "source": {
         "file": "compose.yml",
-        "line": 236,
+        "line": 270,
         "found": true
       }
     },
@@ -1914,9 +2330,9 @@ window.BLOOM_ARCHITECTURE = {
       "id": "gateway-interactions",
       "from": "api-gateway",
       "to": "interactions",
-      "kind": "planned",
+      "kind": "route",
       "label": "HTTP",
-      "description": "Маршруты объявлены в Gateway. Сервис пока заготовка.",
+      "description": "Маршруты объявлены в Gateway. Наличие маршрута не проверяет доступность сервиса.",
       "routes": [
         {
           "id": "interactions",
@@ -1929,6 +2345,19 @@ window.BLOOM_ARCHITECTURE = {
       "source": {
         "file": "server/api-gateway/src/main/resources/application.yml",
         "line": 41,
+        "found": true
+      }
+    },
+    {
+      "id": "interactions-db",
+      "from": "interactions",
+      "to": "db-interactions",
+      "kind": "sql",
+      "label": "SQL",
+      "description": "Подключение к собственной базе PostgreSQL из конфигурации Compose.",
+      "source": {
+        "file": "compose.yml",
+        "line": 235,
         "found": true
       }
     },
@@ -2132,6 +2561,58 @@ window.BLOOM_ARCHITECTURE = {
       }
     },
     {
+      "id": "interactions-identity",
+      "from": "interactions",
+      "to": "identity",
+      "kind": "http",
+      "label": "Проверка сессии",
+      "description": "Interactions проверяет accessToken через Identity introspect. Недоступность Identity не разрешает запрос.",
+      "source": {
+        "file": "server/interactions/src/main/java/app/bloom/interactions/client/IdentityClient.java",
+        "line": 25,
+        "found": true
+      }
+    },
+    {
+      "id": "interactions-users",
+      "from": "interactions",
+      "to": "users",
+      "kind": "http",
+      "label": "Разрешение взаимодействия",
+      "description": "Users проверяет существование анкет, блокировки в обе стороны и активность аккаунтов. Список матчей использует пакетную проверку.",
+      "source": {
+        "file": "server/interactions/src/main/java/app/bloom/interactions/client/UsersClient.java",
+        "line": 27,
+        "found": true
+      }
+    },
+    {
+      "id": "interactions-kafka",
+      "from": "interactions",
+      "to": "kafka",
+      "kind": "event",
+      "label": "bloom.interactions.v1",
+      "description": "match.created и match.closed публикуются через транзакционный outbox. Ключ — matchId, доставка at-least-once.",
+      "source": {
+        "file": "server/interactions/src/main/java/app/bloom/interactions/events/OutboxPublisher.java",
+        "line": 36,
+        "found": true
+      }
+    },
+    {
+      "id": "kafka-interactions",
+      "from": "kafka",
+      "to": "interactions",
+      "kind": "event",
+      "label": "Блокировки и удаление",
+      "description": "События Users и Identity закрывают матчи. Inbox не допускает повторную обработку одного eventId.",
+      "source": {
+        "file": "server/interactions/src/main/java/app/bloom/interactions/events/SafetyEventListener.java",
+        "line": 20,
+        "found": true
+      }
+    },
+    {
       "id": "users-identity",
       "from": "users",
       "to": "identity",
@@ -2211,6 +2692,17 @@ window.BLOOM_ARCHITECTURE = {
     }
   ],
   "notes": [
+    {
+      "service": "interactions",
+      "title": "Chat ещё не подписан на матчи",
+      "text": "События матчей и внутренний can-access-match готовы. Go Chat должен подключить consumer и проверку доступа; автоматического создания комнаты пока нет.",
+      "source": {
+        "file": "contracts/interactions-events.md",
+        "line": 28,
+        "found": true
+      },
+      "review": false
+    },
     {
       "service": "chat",
       "title": "Авторизация пока отдельная",
@@ -2382,7 +2874,7 @@ window.BLOOM_ARCHITECTURE = {
       ]
     }
   ],
-  "revision": "18b9a7bdb9ee",
-  "generated": "2026-09-29T09:52:03.758781+00:00",
+  "revision": "6010f8323632",
+  "generated": "2026-09-29T11:01:35.103858+00:00",
   "notice": "Статический анализ конфигурации и исходников; не мониторинг запущенных сервисов. Сценарии описаны вручную и требуют сверки после изменений логики."
 };

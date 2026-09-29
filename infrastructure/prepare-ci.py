@@ -14,6 +14,33 @@ parser.add_argument("--output", choices=(".ci", ".local", ".local-test"), defaul
 parser.add_argument("--reuse", action="store_true", help="Preserve existing local credentials.")
 args = parser.parse_args()
 output = root / args.output
+
+
+def add_interactions(overrides):
+    path = output / "interactions.yml"
+    identity = yaml.safe_load((output / "identity.yml").read_text(encoding="utf-8"))
+    users = yaml.safe_load((output / "users.yml").read_text(encoding="utf-8"))
+    if not path.exists():
+        if "interactions" in overrides["services"]:
+            raise SystemExit("Restore the missing interactions.yml; its existing database password was not rotated.")
+        defaults = root / "server/interactions/src/main/resources/application.yml"
+        config = yaml.safe_load(defaults.read_text(encoding="utf-8"))
+        config["spring"]["datasource"]["password"] = secrets.token_hex(24)
+        config["bloom"]["internal-token"] = secrets.token_hex(32)
+        config["bloom"]["identity"]["token"] = identity["bloom"]["internal-token"]
+        config["bloom"]["users"]["token"] = users["bloom"]["internal-token"]
+        path.write_text(yaml.safe_dump(config, allow_unicode=True, sort_keys=False), encoding="utf-8")
+    config = yaml.safe_load(path.read_text(encoding="utf-8"))
+    overrides["services"].setdefault("interactions", {"volumes": [{
+        "type": "bind", "source": "./" + path.relative_to(root).as_posix(),
+        "target": "/app/config/application.yml", "read_only": True,
+    }]})
+    overrides["services"].setdefault("interactions-db-init", {"environment": {
+        "PGPASSWORD": overrides["services"]["postgres"]["environment"]["POSTGRES_PASSWORD"],
+        "INTERACTIONS_DATABASE_PASSWORD": config["spring"]["datasource"]["password"],
+    }})
+
+
 if args.reuse and output.exists() and any(output.iterdir()):
     required = ("identity.yml", "users.yml", "identity-private.pem", "compose.yml")
     if not all((output / name).is_file() for name in required):
@@ -29,7 +56,13 @@ if args.reuse and output.exists() and any(output.iterdir()):
         config["bloom"]["moderation-token"] = secrets.token_hex(32)
     if yaml.safe_dump(config, sort_keys=False) != before:
         identity_file.write_text(yaml.safe_dump(config, allow_unicode=True, sort_keys=False), encoding="utf-8")
-    print("Existing credentials preserved; missing Identity event settings added.")
+    compose_file = output / "compose.yml"
+    overrides = yaml.safe_load(compose_file.read_text(encoding="utf-8"))
+    before_compose = yaml.safe_dump(overrides, sort_keys=False)
+    add_interactions(overrides)
+    if yaml.safe_dump(overrides, sort_keys=False) != before_compose:
+        compose_file.write_text(yaml.safe_dump(overrides, sort_keys=False), encoding="utf-8")
+    print("Existing credentials preserved; missing Identity and Interactions settings added.")
     raise SystemExit(0)
 output.mkdir(exist_ok=True)
 passwords = {name: secrets.token_hex(24) for name in ("admin", "identity", "users", "chat", "media")}
@@ -79,5 +112,6 @@ overrides["services"]["chat"] = {"environment": {
 overrides["services"]["media"] = {"environment": {
     "DATABASE_URL": f"postgres://bloom_media:{passwords['media']}@postgres:5432/bloom_media?sslmode=disable"
 }}
+add_interactions(overrides)
 (output / "compose.yml").write_text(yaml.safe_dump(overrides, sort_keys=False), encoding="utf-8")
 print(f"Stack configuration prepared in {args.output} (credentials not printed).")

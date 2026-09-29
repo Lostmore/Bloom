@@ -5,12 +5,52 @@
     "users": "Анкета, интересы, настройки поиска, приватность, блокировки и удаление пользователя.",
     "chat": "Комнаты, история и WebSocket-сообщения. События о вложениях отправляются через outbox.",
     "media": "Файлы на диске, метаданные в PostgreSQL. Kafka подтверждает использование вложений.",
-    "interactions": "Заготовка сервиса взаимодействий и совпадений.",
+    "interactions": "LIKE, SKIP, SUPER_INTEREST, взаимные матчи и unmatch. Проверка сессии в Identity, разрешений в Users; PostgreSQL и Kafka outbox.",
     "activities": "Заготовка сервиса совместных активностей.",
     "discovery": "Будущий поиск и подбор людей. Пока только Go-модуль.",
     "notifications": "Будущие уведомления. Пока только Go-модуль."
   },
   "connections": [
+    {
+      "id": "interactions-identity",
+      "from": "interactions",
+      "to": "identity",
+      "kind": "http",
+      "label": "Проверка сессии",
+      "description": "Interactions проверяет accessToken через Identity introspect. Недоступность Identity не разрешает запрос.",
+      "file": "server/interactions/src/main/java/app/bloom/interactions/client/IdentityClient.java",
+      "needle": "/internal/identity/introspect"
+    },
+    {
+      "id": "interactions-users",
+      "from": "interactions",
+      "to": "users",
+      "kind": "http",
+      "label": "Разрешение взаимодействия",
+      "description": "Users проверяет существование анкет, блокировки в обе стороны и активность аккаунтов. Список матчей использует пакетную проверку.",
+      "file": "server/interactions/src/main/java/app/bloom/interactions/client/UsersClient.java",
+      "needle": "/internal/users/can-interact"
+    },
+    {
+      "id": "interactions-kafka",
+      "from": "interactions",
+      "to": "kafka",
+      "kind": "event",
+      "label": "bloom.interactions.v1",
+      "description": "match.created и match.closed публикуются через транзакционный outbox. Ключ — matchId, доставка at-least-once.",
+      "file": "server/interactions/src/main/java/app/bloom/interactions/events/OutboxPublisher.java",
+      "needle": "kafka.send("
+    },
+    {
+      "id": "kafka-interactions",
+      "from": "kafka",
+      "to": "interactions",
+      "kind": "event",
+      "label": "Блокировки и удаление",
+      "description": "События Users и Identity закрывают матчи. Inbox не допускает повторную обработку одного eventId.",
+      "file": "server/interactions/src/main/java/app/bloom/interactions/events/SafetyEventListener.java",
+      "needle": "@KafkaListener"
+    },
     {
       "id": "users-identity",
       "from": "users",
@@ -73,6 +113,13 @@
     }
   ],
   "notes": [
+    {
+      "service": "interactions",
+      "title": "Chat ещё не подписан на матчи",
+      "text": "События матчей и внутренний can-access-match готовы. Go Chat должен подключить consumer и проверку доступа; автоматического создания комнаты пока нет.",
+      "file": "contracts/interactions-events.md",
+      "needle": "Что добавить в Go Chat"
+    },
     {
       "service": "chat",
       "title": "Авторизация пока отдельная",

@@ -18,13 +18,13 @@ class PrepareConfigTest(unittest.TestCase):
         scripts = self.root / "infrastructure"
         scripts.mkdir()
         shutil.copyfile(Path(__file__).resolve().parents[1] / "prepare-ci.py", scripts / "prepare-ci.py")
-        for name in ("identity", "users"):
+        for name in ("identity", "users", "interactions"):
             target = self.root / "server" / name / "src/main/resources/application.yml"
             target.parent.mkdir(parents=True)
             config = {
                 "spring": {"datasource": {"password": ""}, "kafka": {"bootstrap-servers": "localhost:9092"}},
                 "bloom": {
-                    "internal-token": "", "jwt": {}, "identity": {}, "media": {},
+                    "internal-token": "", "jwt": {}, "identity": {}, "media": {}, "users": {},
                     "events": {"topic": "bloom.identity.v1", "scheduling-enabled": True},
                 },
             }
@@ -72,6 +72,25 @@ class PrepareConfigTest(unittest.TestCase):
         self.assertNotEqual(self.generate().returncode, 0)
         self.assertEqual(private_key.read_text(encoding="utf-8"), "existing key")
         self.assertFalse((output / "compose.yml").exists())
+
+    def test_upgrade_adds_interactions_to_an_existing_stack(self):
+        self.assertEqual(self.generate().returncode, 0)
+        output = self.root / ".local"
+        original = {name: (output / name).read_bytes() for name in ("identity.yml", "users.yml", "identity-private.pem")}
+        compose_file = output / "compose.yml"
+        compose = yaml.safe_load(compose_file.read_text(encoding="utf-8"))
+        admin = compose["services"]["postgres"]["environment"]["POSTGRES_PASSWORD"]
+        del compose["services"]["interactions"]
+        del compose["services"]["interactions-db-init"]
+        compose_file.write_text(yaml.safe_dump(compose), encoding="utf-8")
+        (output / "interactions.yml").unlink()
+        self.assertEqual(self.generate().returncode, 0)
+        config = yaml.safe_load((output / "interactions.yml").read_text(encoding="utf-8"))
+        updated = yaml.safe_load(compose_file.read_text(encoding="utf-8"))
+        self.assertEqual(updated["services"]["interactions-db-init"]["environment"]["PGPASSWORD"], admin)
+        self.assertEqual(config["bloom"]["users"]["token"], yaml.safe_load(original["users.yml"])["bloom"]["internal-token"])
+        for name, content in original.items():
+            self.assertEqual((output / name).read_bytes(), content)
 
 
 if __name__ == "__main__":
