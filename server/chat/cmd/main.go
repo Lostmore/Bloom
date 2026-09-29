@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
 	"log"
 	"net/http"
 	"os"
@@ -17,7 +15,6 @@ import (
 	"bloom.local/chat/internal/repository/postgres"
 	"bloom.local/chat/internal/service"
 	"bloom.local/chat/internal/worker"
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
@@ -29,17 +26,19 @@ import (
 // @description     Микросервис для работы с чатами в Bloom
 // @securityDefinitions.bearerauth BearerAuth
 func main() {
-	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		log.Fatal("Ошибка генерации RSA ключа:", err)
+	identityURL := os.Getenv("IDENTITY_URL")
+	if identityURL == "" {
+		identityURL = "http://identity:8081"
 	}
-	validator := auth.NewRSATokenValidator(&privateKey.PublicKey)
+	internalToken := os.Getenv("INTERNAL_TOKEN")
+	validator := auth.NewRemoteTokenValidator(identityURL, internalToken)
 	ctx := context.Background()
 	dsn := os.Getenv("DATABASE_URL")
 	if dsn == "" {
 		dsn = "postgres://testuser:testpass@localhost:5432/chatdb?sslmode=disable"
 	}
 	var pool *pgxpool.Pool
+	var err error
 	for i := 0; i < 5; i++ {
 		pool, err = pgxpool.New(ctx, dsn)
 		if err == nil {
@@ -90,22 +89,7 @@ func main() {
 		}
 	}
 	http.HandleFunc("/api/rooms", httpDelivery.AuthMiddleware(validator, roomsLogic))
-	http.HandleFunc("/api/test/token", func(w http.ResponseWriter, r *http.Request) {
-		userIDStr := r.URL.Query().Get("user_id")
-		if userIDStr == "" {
-			http.Error(w, "user_id is required", http.StatusBadRequest)
-			return
-		}
-		token := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{
-			"user_id": userIDStr,
-		})
-		tokenString, err := token.SignedString(privateKey)
-		if err != nil {
-			http.Error(w, "Failed to generate token", http.StatusInternalServerError)
-			return
-		}
-		w.Write([]byte(tokenString))
-	})
+
 	http.HandleFunc("GET /openapi.json", docs.Handler)
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		websocket.ServeWS(hub, validator, w, r)

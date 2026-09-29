@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Bloom Multi-Chat Test</title>
+    <title>Bloom Multi-Chat Test (Real Auth)</title>
     <style>
         body { font-family: sans-serif; display: flex; gap: 20px; padding: 20px; }
         .sidebar { width: 300px; border-right: 1px solid #ccc; padding-right: 20px; }
@@ -13,30 +13,47 @@
         .message { margin-bottom: 5px; padding: 5px; background: #e1f5fe; border-radius: 4px; width: fit-content; }
         .system { color: gray; font-size: 0.9em; font-style: italic; }
         .controls { margin-bottom: 15px; }
+        .auth-section { border: 1px solid #007bff; padding: 10px; border-radius: 5px; margin-bottom: 15px; background: #f0f8ff; }
+        .hidden { display: none; }
     </style>
 </head>
 <body>
     <div class="sidebar">
-        <h3>Управление</h3>
-        <div class="controls">
-            <label>Мой User ID (UUID):</label>
-            <input type="text" id="myUserId" value="00000000-0000-0000-0000-000000000001" style="width: 100%;">
-        </div>
-        
-        <div class="controls" style="border: 1px solid #eee; padding: 10px;">
-            <h4>Создать новый чат</h4>
-            <label>С кем (User ID UUID):</label>
-            <input type="text" id="targetUserId" value="00000000-0000-0000-0000-000000000002" style="width: 100%;">
-            <button onclick="createRoom()" style="margin-top: 5px; width: 100%;">Создать (POST)</button>
+        <!-- БЛОК АВТОРИЗАЦИИ -->
+        <div class="auth-section" id="authSection">
+            <h3>🔐 Авторизация</h3>
+            <label>Телефон:</label>
+            <input type="text" id="authPhone" value="+79991234567" style="width: 100%; margin-bottom: 5px;">
+            <label>Пароль:</label>
+            <input type="password" id="authPassword" value="password1234" style="width: 100%; margin-bottom: 10px;">
+            <div style="display: flex; gap: 5px;">
+                <button onclick="login()" style="flex-grow: 1; cursor: pointer;">Войти</button>
+                <button onclick="register()" style="flex-grow: 1; cursor: pointer;">Регистрация</button>
+            </div>
+            <div id="authStatus" style="font-size: 0.8em; color: red; margin-top: 5px;"></div>
         </div>
 
-        <button onclick="loadRooms()" style="width: 100%; padding: 10px; background: #dcedc8; border: none; cursor:pointer;">📥 Загрузить мои чаты</button>
+        <!-- ИНФО О ТЕКУЩЕМ ПОЛЬЗОВАТЕЛЕ -->
+        <div class="controls hidden" id="userInfoSection">
+            <h4 style="margin: 0 0 5px 0;">✅ Вы вошли</h4>
+            <div style="font-size: 0.8em; word-wrap: break-word; color: #333;">ID: <span id="myUserId"></span></div>
+        </div>
+        
+        <!-- СОЗДАНИЕ КОМНАТЫ -->
+        <div class="controls hidden" id="createRoomSection" style="border: 1px solid #eee; padding: 10px;">
+            <h4>Создать новый чат</h4>
+            <label>С кем (ID друга):</label>
+            <input type="text" id="targetUserId" placeholder="UUID друга..." style="width: 100%;">
+            <button onclick="createRoom()" style="margin-top: 5px; width: 100%; cursor: pointer;">Создать чат</button>
+        </div>
+
+        <button onclick="loadRooms()" id="loadRoomsBtn" class="hidden" style="width: 100%; padding: 10px; background: #dcedc8; border: none; cursor:pointer;">📥 Загрузить мои чаты</button>
         
         <ul id="roomsList" class="chat-list"></ul>
     </div>
 
     <div class="main">
-        <h2 id="chatTitle">Выберите чат</h2>
+        <h2 id="chatTitle">Сначала войдите в систему</h2>
         <div id="chat"></div>
         
         <div id="attachmentsPreview" style="margin-bottom: 5px; font-size: 0.9em; color: #555;"></div>
@@ -50,58 +67,109 @@
     </div>
 
     <script>
-        let ws;
-        let currentRoomId = null;
-        
-        // ВАЖНО: Убедись, что эти порты совпадают с твоим main.go
         const host = window.location.host;
         const protocol = window.location.protocol;
         const wsProtocol = protocol === "https:" ? "wss:" : "ws:";
         
-        const apiUrl = `${protocol}//${host}/api/v1/conversations`;
-        const wsUrl = `${wsProtocol}//${host}/api/v1/ws`;
-        const mediaUrl = `${protocol}//${host}/api/v1/media/upload`;
+        const authApiUrl = `${protocol}//${host}/api/v1/auth`;
+        const roomsApiUrl = `${protocol}//${host}/api/v1/conversations`; // Через Gateway API это будет проксировано на Чат
+        const mediaApiUrl = `${protocol}//${host}/api/v1/media/upload`;
         
-        // Получение тестового токена
-        async function getToken(userId) {
-            const res = await fetch(`${protocol}//${host}/api/v1/test/token?user_id=${userId}`);
-            if (!res.ok) throw new Error("Failed to fetch token");
-            return await res.text();
+        let ws;
+        let currentRoomId = null;
+        let accessToken = null;
+        let currentUserId = null;
+        let uploadedFiles = []; // Массив ссылок
+
+        // ----- АВТОРИЗАЦИЯ -----
+        async function register() {
+            const phone = document.getElementById("authPhone").value;
+            const password = document.getElementById("authPassword").value;
+            try {
+                const res = await fetch(`${authApiUrl}/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phoneNumber: phone, password: password })
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    onAuthSuccess(data);
+                } else {
+                    document.getElementById("authStatus").innerText = "Ошибка регистрации: " + await res.text();
+                }
+            } catch(e) { document.getElementById("authStatus").innerText = e; }
         }
 
-        // 1. Создание комнаты (POST HTTP)
-        async function createRoom() {
-            const myId = document.getElementById("myUserId").value;
-            const targetId = document.getElementById("targetUserId").value;
-            
+        async function login() {
+            const phone = document.getElementById("authPhone").value;
+            const password = document.getElementById("authPassword").value;
             try {
-                const token = await getToken(myId);
-                const res = await fetch(apiUrl, {
+                const res = await fetch(`${authApiUrl}/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phoneNumber: phone, password: password })
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    onAuthSuccess(data);
+                } else {
+                    document.getElementById("authStatus").innerText = "Ошибка входа: " + await res.text();
+                }
+            } catch(e) { document.getElementById("authStatus").innerText = e; }
+        }
+
+        async function onAuthSuccess(data) {
+            accessToken = data.accessToken;
+            
+            // Запрашиваем свой профиль чтобы узнать свой accountId
+            const meRes = await fetch(`${authApiUrl}/me`, {
+                headers: { 'Authorization': 'Bearer ' + accessToken }
+            });
+            if (meRes.ok) {
+                const meData = await meRes.json();
+                currentUserId = meData.accountId;
+                document.getElementById("myUserId").innerText = currentUserId;
+                
+                // Переключаем интерфейс
+                document.getElementById("authSection").classList.add("hidden");
+                document.getElementById("userInfoSection").classList.remove("hidden");
+                document.getElementById("createRoomSection").classList.remove("hidden");
+                document.getElementById("loadRoomsBtn").classList.remove("hidden");
+                document.getElementById("chatTitle").innerText = "Выберите чат";
+                
+                loadRooms();
+            }
+        }
+
+
+        // ----- ЧАТЫ И КОМНАТЫ -----
+        async function createRoom() {
+            const targetId = document.getElementById("targetUserId").value;
+            try {
+                const res = await fetch(roomsApiUrl, {
                     method: 'POST',
                     headers: {
-                        'Authorization': 'Bearer ' + token
+                        'Authorization': 'Bearer ' + accessToken,
+                        'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({ user2_id: targetId })
                 });
                 if (res.ok) {
                     alert("Комната создана!");
-                    loadRooms(); // обновляем список
+                    loadRooms();
                 } else {
-                    alert("Ошибка создания: " + await res.text());
+                    alert("Ошибка: " + await res.text());
                 }
             } catch (e) {
-                alert("Сервер недоступен или блокирует CORS: " + e);
+                alert("Ошибка: " + e);
             }
         }
 
-        // 2. Получение списка комнат (GET HTTP)
         async function loadRooms() {
-            const myId = document.getElementById("myUserId").value;
             try {
-                const token = await getToken(myId);
-                const res = await fetch(apiUrl, {
+                const res = await fetch(roomsApiUrl, {
                     headers: {
-                        'Authorization': 'Bearer ' + token
+                        'Authorization': 'Bearer ' + accessToken
                     }
                 });
                 if (res.ok) {
@@ -115,150 +183,146 @@
                     rooms.forEach(room => {
                         const li = document.createElement("li");
                         li.className = "chat-item";
-                        // Если я User1, то собеседник User2, и наоборот
-                        const otherUserId = room.user1_id == myId ? room.user2_id : room.user1_id;
-                        li.innerText = `Чат с User ${otherUserId} (Room ID: ${room.id})`;
+                        const otherUserId = room.user1_id == currentUserId ? room.user2_id : room.user1_id;
+                        li.innerText = `Чат с User (ID: ${otherUserId.substring(0,8)}...)`;
                         li.onclick = () => connectToRoom(room.id, otherUserId);
                         list.appendChild(li);
                     });
                 } else {
-                    alert("Ошибка: " + await res.text());
+                    alert("Ошибка загрузки комнат: " + await res.text());
                 }
             } catch (e) {
                 alert("Ошибка загрузки комнат: " + e);
             }
         }
 
-        // 3. Подключение к сокету
+        // ----- WEBSOCKET -----
         async function connectToRoom(roomId, otherUserId) {
-            if (ws) { ws.close(); } // закрываем старый сокет
+            if (ws) { ws.close(); } 
             
-            const myId = document.getElementById("myUserId").value;
-            document.getElementById("chatTitle").innerText = `Чат с User ${otherUserId}`;
-            document.getElementById("chat").innerHTML = ""; // очищаем окно
+            document.getElementById("chatTitle").innerText = `Чат с User (ID: ${otherUserId.substring(0,8)}...)`;
+            document.getElementById("chat").innerHTML = ""; 
             
             try {
-                const token = await getToken(myId);
-                ws = new WebSocket(`${wsUrl}?room_id=${roomId}&token=${token}`);
+                // Подключаемся к вебсокету, передавая реальный токен!
+                const wsUrl = `${wsProtocol}//${host}/api/v1/ws?token=${accessToken}&room_id=${roomId}`;
+                ws = new WebSocket(wsUrl);
                 
-                ws.onopen = function() {
-                appendMessage("Подключено к комнате " + roomId, "system");
-                document.getElementById("msg").disabled = false;
-                document.getElementById("sendBtn").disabled = false;
-                document.getElementById("uploadBtn").disabled = false;
-            };
-            
-            ws.onmessage = function(event) {
-                const message = JSON.parse(event.data);
+                ws.onopen = () => {
+                    printMsg("Система", "Подключено к комнате", "system");
+                    document.getElementById("msg").disabled = false;
+                    document.getElementById("sendBtn").disabled = false;
+                    document.getElementById("uploadBtn").disabled = false;
+                    currentRoomId = roomId;
+                };
                 
-                let content = "User " + message.sender_id + ": ";
-                
-                // Экранируем текст для безопасности (простая защита)
-                let safeText = message.content.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-                content += safeText;
-                
-                if (message.attachments && message.attachments.length > 0) {
-                    content += `<div style="margin-top: 5px;">`;
-                    message.attachments.forEach(att => {
-                        content += `<a href="${att.url}" target="_blank" style="margin-right: 10px; display: inline-block; padding: 5px; background: #eee; border-radius: 4px; text-decoration: none;">🖼️ Вложение</a>`;
-                    });
-                    content += `</div>`;
-                } else if (message.content.includes("/media/")) {
-                    // Резервный вариант, если кто-то прислал старый формат ссылки текстом
-                    const urlRegex = /(http[^\s]+)/g;
-                    content = content.replace(urlRegex, '<a href="$1" target="_blank">🔗 Ссылка</a>');
-                }
-                
-                appendMessage(content, "message", true);
-            };
-            
-            ws.onclose = function() {
-                appendMessage("Отключено.", "system");
-                document.getElementById("msg").disabled = true;
-                document.getElementById("sendBtn").disabled = true;
-                document.getElementById("uploadBtn").disabled = true;
-            };
-            } catch (e) {
-                alert("Ошибка подключения к чату: " + e);
-            }
-        }
-
-        let pendingAttachments = [];
-
-        function updateAttachmentsPreview() {
-            const preview = document.getElementById("attachmentsPreview");
-            if (pendingAttachments.length === 0) {
-                preview.innerHTML = "";
-            } else {
-                preview.innerHTML = `Прикреплено файлов: <b>${pendingAttachments.length}</b>`;
-            }
-        }
-
-        function sendMessage() {
-            const input = document.getElementById("msg");
-            if (ws && (input.value || pendingAttachments.length > 0)) {
-                
-                const attachmentsPayload = pendingAttachments.map(url => ({ url: url }));
-                
-                ws.send(JSON.stringify({ 
-                    content: input.value,
-                    attachments: attachmentsPayload
-                }));
-                
-                input.value = "";
-                pendingAttachments = [];
-                updateAttachmentsPreview();
-            }
-        }
-
-        async function uploadMedia() {
-            const fileInput = document.getElementById("mediaFile");
-            if (!fileInput.files.length) return;
-            
-            const uploadBtn = document.getElementById("uploadBtn");
-            uploadBtn.innerText = "⏳...";
-            uploadBtn.disabled = true;
-
-            try {
-                // Загружаем файлы по очереди
-                for (let i = 0; i < fileInput.files.length; i++) {
-                    const file = fileInput.files[i];
-                    const formData = new FormData();
-                    formData.append("file", file);
+                ws.onmessage = (evt) => {
+                    const data = JSON.parse(evt.data);
                     
-                    const res = await fetch(mediaUrl, {
+                    const sender = data.sender_id == currentUserId ? "Вы" : "Собеседник";
+                    
+                    // Собираем ссылки из attachments, если они есть
+                    let urls = [];
+                    if (data.attachments && data.attachments.length > 0) {
+                        urls = data.attachments.map(att => att.url);
+                    }
+                    printMsg(sender, data.content, "", urls);
+                };
+                
+                ws.onclose = () => {
+                    printMsg("Система", "Отключено", "system");
+                    document.getElementById("msg").disabled = true;
+                    document.getElementById("sendBtn").disabled = true;
+                    document.getElementById("uploadBtn").disabled = true;
+                };
+                
+            } catch (e) {
+                alert("Ошибка подключения к сокету: " + e);
+            }
+        }
+
+        // ----- МЕДИА -----
+        async function uploadMedia() {
+            const files = document.getElementById("mediaFile").files;
+            if (files.length === 0) return;
+            
+            for (let i = 0; i < files.length; i++) {
+                const formData = new FormData();
+                formData.append("file", files[i]);
+                
+                document.getElementById("attachmentsPreview").innerText = `Загрузка файла ${i+1} из ${files.length}...`;
+
+                try {
+                    const res = await fetch(mediaApiUrl, {
                         method: "POST",
+                        headers: {
+                            'Authorization': 'Bearer ' + accessToken
+                        },
                         body: formData
                     });
                     
                     if (res.ok) {
                         const data = await res.json();
-                        pendingAttachments.push(data.url);
+                        uploadedFiles.push(data.url);
                     } else {
-                        alert(`Ошибка загрузки ${file.name}: ` + await res.text());
+                        alert("Ошибка загрузки файла " + files[i].name + ": " + await res.text());
                     }
+                } catch (e) {
+                    alert("Ошибка при отправке файла: " + e);
                 }
-                updateAttachmentsPreview();
-            } catch (e) {
-                alert("Ошибка загрузки: " + e);
             }
-            
-            uploadBtn.innerText = "📎 Файлы";
-            uploadBtn.disabled = false;
-            fileInput.value = ""; // сброс
+
+            document.getElementById("mediaFile").value = "";
+            renderAttachmentsPreview();
         }
 
-        function appendMessage(text, className, isHTML = false) {
-            const chat = document.getElementById("chat");
-            const div = document.createElement("div");
-            if (isHTML) {
-                div.innerHTML = text;
-            } else {
-                div.textContent = text;
+        function renderAttachmentsPreview() {
+            const previewDiv = document.getElementById("attachmentsPreview");
+            if (uploadedFiles.length === 0) {
+                previewDiv.innerText = "";
+                return;
             }
-            div.className = className;
-            chat.appendChild(div);
-            chat.scrollTop = chat.scrollHeight;
+            previewDiv.innerHTML = `Прикреплено файлов: <b>${uploadedFiles.length}</b>. <button onclick="clearAttachments()">Удалить всё</button>`;
+        }
+
+        function clearAttachments() {
+            uploadedFiles = [];
+            renderAttachmentsPreview();
+        }
+
+        // ----- СООБЩЕНИЯ -----
+        function sendMessage() {
+            const input = document.getElementById("msg");
+            if (input.value.trim() === "" && uploadedFiles.length === 0) return;
+            
+            const msgObj = {
+                content: input.value,
+                attachments: uploadedFiles.map(url => ({ url: url })) 
+            };
+            
+            ws.send(JSON.stringify(msgObj));
+            input.value = "";
+            clearAttachments(); 
+        }
+
+        function printMsg(sender, text, className, attachments) {
+            const chatDiv = document.getElementById("chat");
+            const div = document.createElement("div");
+            div.className = "message " + className;
+            
+            let htmlContent = `<b>${sender}:</b> ${text || ""}`;
+            
+            if (attachments && attachments.length > 0) {
+                htmlContent += `<br><br><b>Прикреплённые файлы:</b><ul style="margin: 5px 0; padding-left: 20px;">`;
+                attachments.forEach(url => {
+                    htmlContent += `<li><a href="${url}" target="_blank">Открыть медиа</a></li>`;
+                });
+                htmlContent += `</ul>`;
+            }
+            
+            div.innerHTML = htmlContent;
+            chatDiv.appendChild(div);
+            chatDiv.scrollTop = chatDiv.scrollHeight;
         }
     </script>
 </body>
