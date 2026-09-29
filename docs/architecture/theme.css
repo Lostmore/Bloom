@@ -1,0 +1,107 @@
+:root { color-scheme: light; }
+.theme-toggle {
+  min-height: 36px;
+  padding: 7px 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--bg);
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #191a20;
+  --ink: #ebe7f2;
+  --muted: #aaa4b8;
+  --line: #34313f;
+  --amber: #e4b36d;
+}
+
+[data-theme="dark"] {
+  .sidebar { background: #171820; border-color: #34313f; }
+  .topbar { border-color: var(--line); }
+  .breadcrumb strong, .snapshot { color: #bfb5cd; }
+  .breadcrumb span, .snapshot small { color: #948b9f; }
+  h1 span { color: #afa3bd; }
+  .metric, .canvas-card, .inspector {
+    background: #202128;
+    border-color: var(--line);
+  }
+  .metric-icon, .node-icon { background: #30283f; color: #c6a5fa; }
+  .metric:nth-child(2) .metric-icon, .node.database .node-icon {
+    background: #233340; color: #9ec7ed;
+  }
+  .metric:nth-child(3) .metric-icon, .node.client .node-icon {
+    background: #40263a; color: #f4a4cb;
+  }
+  .metric:nth-child(4) .metric-icon, .node.storage .node-icon {
+    background: #3b3225; color: #e4c18a;
+  }
+  .node.go .node-icon { background: #213a3c; color: #8bcfc9; }
+  .node.event .node-icon { background: #362840; color: #d0a1e6; }
+  .metric p, .metric small, .segmented button, .quiet { color: #b0a5bd; }
+  .segmented .selected { background: #392a40; color: #e6b5d8; }
+  .search, .file-link { background: #292731; color: #c7b5d8; }
+  .search input { color: var(--ink); }
+  .search input::placeholder { color: #a398b1; }
+  kbd, .help { border-color: #514858; color: #beb0cc; }
+  .avatar { background: #3d2c44; color: #e4b2d6; }
+  #viewport {
+    background-image: radial-gradient(ellipse at 50% 40%, #44233c40, transparent 70%),
+      radial-gradient(#48414f .8px, transparent .8px);
+  }
+  .node { background: #25242e; border-color: #494052; box-shadow: 0 5px 18px #0003; }
+  .node:hover { border-color: #b887b4; }
+  .node.selected, .node.step-active {
+    border-color: #e294c6;
+    box-shadow: 0 0 0 3px #e294c624, 0 6px 20px #0004;
+  }
+  .node.stub { background: #24212b; }
+  .node .node-tech, .node-bottom { color: #bdb0ca; }
+  .node-bottom { border-color: #3b3446; }
+  .map-label, .map-label small, .lane-title, .legend, .map-caption { color: #b3a4c0; }
+  .edge-line { stroke: #ae88bc; }
+  .edge.http .edge-line { stroke: #82b7b4; }
+  .edge.sql .edge-line { stroke: #82a9c9; }
+  .edge.event .edge-line { stroke: #c193d4; opacity: .85; }
+  .edge.gap .edge-line, .edge.planned .edge-line { stroke: #caa064; }
+  .edge.active .edge-line { stroke: #f19dcd; }
+  .edge-label { stroke: #202128; fill: #d3b6e0; }
+  .edge.active .edge-label { fill: #ffc3e7; }
+  #arrow path { fill: #c2a1cf; }
+  .map-controls { background: #2b2734; border-color: #50435d; color: #e2d3ed; }
+  .map-controls button:last-child { border-color: #50435d; }
+  #no-results { background: #25242ef2; color: #dacbe5; }
+  .detail-icon { background: linear-gradient(135deg, #462b40, #302842); color: #ecafd9; }
+  .pill { background: #362b44; color: #cfb0e9; }
+  .pill.amber { background: #3c3122; color: #edc68c; }
+  .description, .empty, dialog p { color: #beb0cb; }
+  .detail-tabs, .detail-row, .related, .endpoint, .layer { border-color: #37303f; }
+  .detail-tabs button, .detail-section h3, .detail-row, .related, .layer summary {
+    color: #bba9c9;
+  }
+  .detail-tabs button.active { color: #f1b4d9; }
+  .detail-row b, .endpoint code { color: #ded0e9; }
+  .endpoint small { color: #a99bb5; }
+  .method { color: #94cbb6; }
+  .method.POST { color: #c4a4ed; }
+  .method.DELETE { color: #f1a2b1; }
+  .notice { background: #352c22; border-color: #584532; color: #e3c295; }
+  .file-link:hover { background: #3b3048; }
+  #detail { scrollbar-color: #5b4869 transparent; }
+  .player { background: linear-gradient(115deg, #2d2333, #202128 70%); border-color: var(--line); }
+  .player-choice select, .step-heading strong { color: #e0cce9; }
+  .player-main p, .player-choice > span:last-child { color: #bfaacb; }
+  .progress button { background: #493650; }
+  .progress button.active { background: #db9cc9; }
+  dialog { background: #25222d; color: var(--ink); border-color: #574361; }
+  dialog::backdrop { background: #09080db3; }
+  footer, footer button { color: #b1a0c0; }
+}
+
+@media (max-width: 700px) {
+  .topbar { height: auto; min-height: 64px; flex-wrap: wrap; gap: 10px; padding: 12px 0; }
+  .top-actions { gap: 10px; }
+  .theme-toggle { font-size: 12px; padding: 6px 9px; }
+}
