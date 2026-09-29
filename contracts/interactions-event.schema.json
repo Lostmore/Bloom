@@ -1,0 +1,131 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Bloom Interactions event v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "eventId",
+    "schemaVersion",
+    "type",
+    "matchId",
+    "version",
+    "occurredAt",
+    "data"
+  ],
+  "properties": {
+    "eventId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "type": {
+      "enum": [
+        "match.created",
+        "match.closed"
+      ]
+    },
+    "matchId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "userA",
+        "userB",
+        "status",
+        "reason"
+      ],
+      "properties": {
+        "userA": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "userB": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "status": {
+          "enum": [
+            "ACTIVE",
+            "UNMATCHED",
+            "BLOCKED"
+          ]
+        },
+        "reason": {
+          "enum": [
+            "MUTUAL_INTEREST",
+            "UNMATCHED",
+            "USER_BLOCKED",
+            "ACCOUNT_BLOCKED",
+            "ACCOUNT_DELETED"
+          ]
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "match.created"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "version": {
+            "const": 1
+          },
+          "data": {
+            "properties": {
+              "status": {
+                "const": "ACTIVE"
+              },
+              "reason": {
+                "const": "MUTUAL_INTEREST"
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "version": {
+            "const": 2
+          },
+          "data": {
+            "properties": {
+              "status": {
+                "enum": [
+                  "UNMATCHED",
+                  "BLOCKED"
+                ]
+              },
+              "reason": {
+                "enum": [
+                  "UNMATCHED",
+                  "USER_BLOCKED",
+                  "ACCOUNT_BLOCKED",
+                  "ACCOUNT_DELETED"
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

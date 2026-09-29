@@ -1,0 +1,61 @@
+name: Interactions Service CI
+
+on:
+  push:
+    branches: [develop, main]
+    paths:
+      - 'server/interactions/**'
+      - 'server/users/**'
+      - 'server/api-gateway/**'
+      - 'server/build.gradle'
+      - 'server/settings.gradle'
+      - 'server/gradle/**'
+      - 'server/gradlew*'
+      - 'contracts/interactions-*'
+      - '.github/workflows/interactions-ci.yml'
+  pull_request:
+    paths:
+      - 'server/interactions/**'
+      - 'server/users/**'
+      - 'server/api-gateway/**'
+      - 'server/build.gradle'
+      - 'server/settings.gradle'
+      - 'server/gradle/**'
+      - 'server/gradlew*'
+      - 'contracts/interactions-*'
+      - '.github/workflows/interactions-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: interactions-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: gradle
+      - run: chmod +x server/gradlew
+      - name: PostgreSQL, Kafka, API and authorization tests
+        working-directory: server
+        run: ./gradlew :interactions:build :users:test :api-gateway:test --no-daemon
+      - name: Build Interactions container
+        run: docker build -f infrastructure/java/Dockerfile --build-arg SERVICE=interactions -t bloom-interactions:ci .
+      - name: Test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: interactions-test-reports
+          path: |
+            server/interactions/build/reports/tests/
+            server/users/build/reports/tests/
+            server/api-gateway/build/reports/tests/

@@ -1,0 +1,82 @@
+server:
+  address: 127.0.0.1
+  port: 8083
+
+spring:
+  application:
+    name: bloom-interactions
+  datasource:
+    url: jdbc:postgresql://localhost:5432/bloom_interactions
+    username: bloom_interactions
+    password: ""
+    hikari:
+      maximum-pool-size: 10
+      connection-timeout: 5000
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
+  mvc:
+    problemdetails:
+      enabled: true
+  task:
+    scheduling:
+      pool:
+        size: 2
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: bloom-interactions-v1
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      properties:
+        max.poll.records: 20
+    listener:
+      ack-mode: record
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      properties:
+        enable.idempotence: true
+        max.block.ms: 5000
+        delivery.timeout.ms: 10000
+        request.timeout.ms: 5000
+
+bloom:
+  internal-token: ""
+  identity:
+    url: http://localhost:8081
+    token: ""
+  users:
+    url: http://localhost:8082
+    token: ""
+  matching:
+    cooldown-days: 30
+    daily-limit: 1000
+  events:
+    topic: bloom.interactions.v1
+    scheduling-enabled: true
+    consuming-enabled: true
+    users-topic: bloom.users.v1
+    identity-topic: bloom.identity.v1
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,db
+
+logging:
+  structured:
+    format:
+      console: ecs
