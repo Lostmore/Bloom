@@ -2,6 +2,22 @@
 (() => {
   "use strict";
   const $ = (selector) => document.querySelector(selector);
+  const themeButton = $("#theme");
+  function updateThemeButton() {
+    const dark = document.documentElement.dataset.theme === "dark";
+    themeButton.textContent = dark ? "☀ Светлая тема" : "☾ Тёмная тема";
+    themeButton.setAttribute("aria-label", dark ? "Включить светлую тему" : "Включить тёмную тему");
+    themeButton.setAttribute("aria-pressed", String(dark));
+  }
+  themeButton.addEventListener("click", () => {
+    const theme = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+    document.documentElement.dataset.theme = theme;
+    try {
+      localStorage.setItem("bloom-architecture-theme", theme);
+    } catch { /* Switching still works when storage is unavailable. */ }
+    updateThemeButton();
+  });
+  updateThemeButton();
   const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[character]));
   let data = window.BLOOM_ARCHITECTURE;
   if (!data) { $("#detail").textContent = "Не найден data.js. Запустите генератор карты."; return; }

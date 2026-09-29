@@ -1,12 +1,19 @@
 <!doctype html>
-<html lang="ru">
+<html lang="ru" data-theme="dark">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="light">
+  <meta name="color-scheme" content="dark light">
   <title>Bloom — Architecture Explorer</title>
   <link rel="icon" href="assets/brand/bloom-mark.svg" type="image/svg+xml">
+  <script>
+    try {
+      const savedTheme = localStorage.getItem("bloom-architecture-theme");
+      if (savedTheme === "light") document.documentElement.dataset.theme = "light";
+    } catch { /* Storage may be disabled; keep the default dark theme. */ }
+  </script>
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="theme.css">
 </head>
 <body>
   <aside class="sidebar">
@@ -20,7 +27,7 @@
     <div class="sidebar-bottom"><span class="small-flower">✦</span><strong>See you..</strong><p>Исследуйте связи.<br>Следуйте за запросом.</p><div class="repo-mark">⑂ <span id="commit">local</span><span>снимок исходников</span></div></div>
   </aside>
   <main>
-    <header class="topbar"><div class="breadcrumb">Workspace <span>/</span> Bloom <span>/</span> <strong>Архитектура</strong></div><div class="top-actions"><button id="motion" class="quiet" aria-pressed="true">◌ Анимация</button><button id="help" class="help" aria-label="Как работает карта">?</button><span class="avatar">B</span></div></header>
+    <header class="topbar"><div class="breadcrumb">Workspace <span>/</span> Bloom <span>/</span> <strong>Архитектура</strong></div><div class="top-actions"><button id="theme" class="theme-toggle" aria-label="Toggle dark theme" aria-pressed="true">?</button><button id="motion" class="quiet" aria-pressed="true">◌ Анимация</button><button id="help" class="help" aria-label="Как работает карта">?</button><span class="avatar">B</span></div></header>
     <section class="page-heading"><div><div class="eyebrow">YOUR SYSTEM, CONNECTED</div><h1>Вся картина. <span>В одной карте.</span></h1><p>Как устроен Bloom — от первого запроса до события в Kafka.</p></div><div class="snapshot"><span class="snapshot-dot"></span><div>Снимок кода<small id="updated">Загрузка…</small></div></div></section>
     <section class="metrics" id="metrics" aria-label="Сводка проекта"></section>
     <div class="explorer">
