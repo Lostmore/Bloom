@@ -28,7 +28,7 @@
   let motion = !reduced;
   const icons = {java:"♧", go:"◇", database:"▱", event:"⌘", storage:"▤", client:"▯"};
   const technologies = {java:"JAVA · SPRING", go:"GO · NET/HTTP", database:"POSTGRESQL", event:"EVENT BROKER", storage:"DOCKER VOLUME", client:"КЛИЕНТ"};
-  const positions = {client:[35,345], "api-gateway":[295,345], identity:[590,75], users:[590,255], chat:[590,435], media:[590,615], "db-identity":[960,75], "db-users":[960,255], "db-chat":[960,435], "db-media":[960,615], kafka:[590,820], files:[960,820]};
+  const positions = {client:[35,345], "api-gateway":[295,345], identity:[590,75], users:[590,255], interactions:[590,435], chat:[590,615], media:[590,795], "db-identity":[960,75], "db-users":[960,255], "db-interactions":[960,435], "db-chat":[960,615], "db-media":[960,795], kafka:[590,1000], files:[960,1000]};
   const statusLabels = {implemented:"Есть реализация", stub:"Заготовка", concept:"Участник сценария"};
   const layerLabels = {controller:"Контроллеры · HTTP вход", delivery:"Обработчики · HTTP / WS", service:"Бизнес-логика", repository:"Доступ к данным", security:"Авторизация и защита", client:"HTTP-клиенты других сервисов", events:"Публикация событий", worker:"Фоновые задачи", domain:"Доменные типы", model:"Модели", dto:"Запросы и ответы", config:"Конфигурация", application:"Приложение"};
   const scenario = () => data.scenarios.find((item) => item.id === scenarioId) || data.scenarios[0];
@@ -44,7 +44,7 @@
 
   function fit() {
     const viewport = $("#viewport");
-    zoom = Math.min((viewport.clientWidth - 35) / 1200, (viewport.clientHeight - 105) / 940, 1.1);
+    zoom = Math.min((viewport.clientWidth - 35) / 1200, (viewport.clientHeight - 105) / 1120, 1.1);
     pan = {x: (viewport.clientWidth - 1200 * zoom) / 2, y: 60};
     transform();
   }
@@ -67,6 +67,10 @@
     const start = positions[edge.from], finish = positions[edge.to];
     if (!start || !finish) return "";
     const sx = start[0] + 190, sy = start[1] + 51, tx = finish[0], ty = finish[1] + 51;
+    if (edge.from === "interactions" && ["identity", "users"].includes(edge.to)) {
+      const lane = edge.to === "identity" ? 545 : 565;
+      return `M ${start[0]} ${sy} H ${lane} V ${ty} H ${finish[0]}`;
+    }
     if (edge.from === "users" && edge.to === "identity") {
       return `M ${start[0]+95} ${start[1]} C ${start[0]+95} ${start[1]-65}, ${finish[0]+95} ${finish[1]+166}, ${finish[0]+95} ${finish[1]+103}`;
     }
@@ -74,9 +78,9 @@
       return `M ${sx} ${sy} C 880 ${sy}, 880 ${ty}, ${finish[0]+190} ${ty}`;
     }
     if (edge.to === "kafka") {
-      const index = ["identity", "users", "chat"].indexOf(edge.from);
+      const index = ["identity", "users", "interactions", "chat"].indexOf(edge.from);
       const lane = 825 + index * 32;
-      const endY = finish[1] + 23 + index * 26;
+      const endY = finish[1] + 18 + index * 22;
       return `M ${sx} ${sy+20} H ${lane-12} Q ${lane} ${sy+20} ${lane} ${sy+32} V ${endY-12} Q ${lane} ${endY} ${lane-12} ${endY} H ${finish[0]+190}`;
     }
     if (edge.from === "kafka") {
