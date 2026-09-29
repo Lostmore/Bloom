@@ -1,5 +1,5 @@
 window.BLOOM_ARCHITECTURE = {
-  "commit": "1656621",
+  "commit": "e7a7ccf",
   "nodes": [
     {
       "id": "api-gateway",
@@ -92,7 +92,7 @@ window.BLOOM_ARCHITECTURE = {
       "files": 6,
       "source": {
         "file": "compose.yml",
-        "line": 182,
+        "line": 184,
         "found": true
       }
     },
@@ -1403,7 +1403,7 @@ window.BLOOM_ARCHITECTURE = {
       "files": 2,
       "source": {
         "file": "compose.yml",
-        "line": 221,
+        "line": 223,
         "found": true
       }
     },
@@ -1445,7 +1445,7 @@ window.BLOOM_ARCHITECTURE = {
       "files": 2,
       "source": {
         "file": "compose.yml",
-        "line": 234,
+        "line": 236,
         "found": true
       }
     },
@@ -1502,9 +1502,9 @@ window.BLOOM_ARCHITECTURE = {
             }
           },
           {
-            "name": "jwt_validator.go",
+            "name": "remote_validator.go",
             "source": {
-              "file": "server/chat/internal/pkg/auth/jwt_validator.go",
+              "file": "server/chat/internal/pkg/auth/remote_validator.go",
               "line": 1,
               "found": true
             }
@@ -1692,6 +1692,14 @@ window.BLOOM_ARCHITECTURE = {
               "line": 1,
               "found": true
             }
+          },
+          {
+            "name": "remote_validator.go",
+            "source": {
+              "file": "server/media/internal/pkg/auth/remote_validator.go",
+              "line": 1,
+              "found": true
+            }
           }
         ],
         "delivery": [
@@ -1699,6 +1707,14 @@ window.BLOOM_ARCHITECTURE = {
             "name": "media_handler.go",
             "source": {
               "file": "server/media/internal/delivery/http/media_handler.go",
+              "line": 1,
+              "found": true
+            }
+          },
+          {
+            "name": "middleware.go",
+            "source": {
+              "file": "server/media/internal/delivery/http/middleware.go",
               "line": 1,
               "found": true
             }
@@ -1745,10 +1761,10 @@ window.BLOOM_ARCHITECTURE = {
           }
         ]
       },
-      "files": 7,
+      "files": 9,
       "source": {
         "file": "compose.yml",
-        "line": 161,
+        "line": 162,
         "found": true
       }
     },
@@ -1760,7 +1776,7 @@ window.BLOOM_ARCHITECTURE = {
       "description": "Отдельная база сервиса media в общем PostgreSQL-контейнере. Не отдельный сервер PostgreSQL.",
       "source": {
         "file": "compose.yml",
-        "line": 166,
+        "line": 167,
         "found": true
       },
       "endpoints": [],
@@ -1816,7 +1832,7 @@ window.BLOOM_ARCHITECTURE = {
       "description": "Файлы в /app/uploads, Docker volume media-data. Это локальный диск, не S3.",
       "source": {
         "file": "compose.yml",
-        "line": 176,
+        "line": 178,
         "found": true
       },
       "endpoints": [],
@@ -2063,7 +2079,7 @@ window.BLOOM_ARCHITECTURE = {
       "description": "Подключение к собственной базе PostgreSQL из конфигурации Compose.",
       "source": {
         "file": "compose.yml",
-        "line": 166,
+        "line": 167,
         "found": true
       }
     },
@@ -2098,7 +2114,7 @@ window.BLOOM_ARCHITECTURE = {
       "description": "Публичная точка входа приложения. Прямой introspect из Postman использует отдельный опубликованный порт Identity.",
       "source": {
         "file": "compose.yml",
-        "line": 212,
+        "line": 214,
         "found": true
       }
     },
@@ -2189,7 +2205,7 @@ window.BLOOM_ARCHITECTURE = {
       "description": "Media читает media.message_saved, извлекает ID из URL вложений и помечает файлы постоянными.",
       "source": {
         "file": "server/media/cmd/main.go",
-        "line": 83,
+        "line": 91,
         "found": true
       }
     }
@@ -2201,10 +2217,10 @@ window.BLOOM_ARCHITECTURE = {
       "text": "Chat генерирует собственный RSA-ключ. Проверка токенов через Identity в этом коде ещё не подключена.",
       "source": {
         "file": "server/chat/cmd/main.go",
-        "line": 32,
-        "found": true
+        "line": 1,
+        "found": false
       },
-      "review": false
+      "review": true
     },
     {
       "service": "media",
@@ -2366,7 +2382,7 @@ window.BLOOM_ARCHITECTURE = {
       ]
     }
   ],
-  "revision": "7f77b41e45da",
-  "generated": "2026-09-29T09:37:28.156088+00:00",
+  "revision": "18b9a7bdb9ee",
+  "generated": "2026-09-29T09:52:03.758781+00:00",
   "notice": "Статический анализ конфигурации и исходников; не мониторинг запущенных сервисов. Сценарии описаны вручную и требуют сверки после изменений логики."
 };
