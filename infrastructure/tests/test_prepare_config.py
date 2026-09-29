@@ -73,6 +73,24 @@ class PrepareConfigTest(unittest.TestCase):
         self.assertEqual(private_key.read_text(encoding="utf-8"), "existing key")
         self.assertFalse((output / "compose.yml").exists())
 
+    def test_upgrade_supplies_identity_token_to_go_without_rotating_passwords(self):
+        self.assertEqual(self.generate().returncode, 0)
+        output = self.root / ".local"
+        compose_file = output / "compose.yml"
+        compose = yaml.safe_load(compose_file.read_text(encoding="utf-8"))
+        passwords = {}
+        for name in ("chat", "media"):
+            environment = compose["services"][name]["environment"]
+            passwords[name] = environment["DATABASE_URL"]
+            del environment["INTERNAL_TOKEN"]
+        compose_file.write_text(yaml.safe_dump(compose), encoding="utf-8")
+        self.assertEqual(self.generate().returncode, 0)
+        updated = yaml.safe_load(compose_file.read_text(encoding="utf-8"))
+        token = yaml.safe_load((output / "identity.yml").read_text(encoding="utf-8"))["bloom"]["internal-token"]
+        for name in ("chat", "media"):
+            self.assertEqual(updated["services"][name]["environment"]["INTERNAL_TOKEN"], token)
+            self.assertEqual(updated["services"][name]["environment"]["DATABASE_URL"], passwords[name])
+
     def test_upgrade_adds_interactions_to_an_existing_stack(self):
         self.assertEqual(self.generate().returncode, 0)
         output = self.root / ".local"

@@ -16,6 +16,15 @@ args = parser.parse_args()
 output = root / args.output
 
 
+def add_go_identity_credentials(overrides):
+    identity = yaml.safe_load((output / "identity.yml").read_text(encoding="utf-8"))
+    token = identity["bloom"]["internal-token"]
+    for name in ("chat", "media"):
+        environment = overrides["services"].setdefault(name, {}).setdefault("environment", {})
+        if not environment.get("INTERNAL_TOKEN"):
+            environment["INTERNAL_TOKEN"] = token
+
+
 def add_interactions(overrides):
     path = output / "interactions.yml"
     identity = yaml.safe_load((output / "identity.yml").read_text(encoding="utf-8"))
@@ -60,9 +69,10 @@ if args.reuse and output.exists() and any(output.iterdir()):
     overrides = yaml.safe_load(compose_file.read_text(encoding="utf-8"))
     before_compose = yaml.safe_dump(overrides, sort_keys=False)
     add_interactions(overrides)
+    add_go_identity_credentials(overrides)
     if yaml.safe_dump(overrides, sort_keys=False) != before_compose:
         compose_file.write_text(yaml.safe_dump(overrides, sort_keys=False), encoding="utf-8")
-    print("Existing credentials preserved; missing Identity and Interactions settings added.")
+    print("Existing credentials preserved; missing service settings added.")
     raise SystemExit(0)
 output.mkdir(exist_ok=True)
 passwords = {name: secrets.token_hex(24) for name in ("admin", "identity", "users", "chat", "media")}
@@ -113,5 +123,6 @@ overrides["services"]["media"] = {"environment": {
     "DATABASE_URL": f"postgres://bloom_media:{passwords['media']}@postgres:5432/bloom_media?sslmode=disable"
 }}
 add_interactions(overrides)
+add_go_identity_credentials(overrides)
 (output / "compose.yml").write_text(yaml.safe_dump(overrides, sort_keys=False), encoding="utf-8")
 print(f"Stack configuration prepared in {args.output} (credentials not printed).")
