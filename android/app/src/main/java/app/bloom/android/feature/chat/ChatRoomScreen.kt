@@ -38,6 +38,17 @@ fun ChatRoomScreen(graph: AppGraph, roomId: Long, myId: String, back: () -> Unit
     var sendError by remember { mutableStateOf<String?>(null) }
     var pendingText by remember { mutableStateOf<String?>(null) }
     var sentAfter by remember { mutableLongStateOf(0) }
+    var partnerName by remember(roomId) { mutableStateOf<String?>(null) }
+    LaunchedEffect(roomId) {
+        try {
+            val room = graph.chat.rooms().orEmpty().find { it.id == roomId }
+            if (room != null) partnerName = graph.users.profile(room.partner(myId)).nickname
+        } catch (exception: kotlinx.coroutines.CancellationException) {
+            throw exception
+        } catch (_: Exception) {
+            /* Private or unavailable profile: keep the conversation open. */
+        }
+    }
     val list = rememberLazyListState()
     LaunchedEffect(connection, lifecycle) {
         lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -56,6 +67,7 @@ fun ChatRoomScreen(graph: AppGraph, roomId: Long, myId: String, back: () -> Unit
     }
     DisposableEffect(connection) { onDispose { connection.disconnect() } }
     LaunchedEffect(state.messages.lastOrNull()?.id) {
+        state.messages.lastOrNull()?.let(graph.chatPreviews::record)
         if (state.messages.isNotEmpty()) list.animateScrollToItem(state.messages.lastIndex)
         if (
             pendingText != null &&
@@ -80,9 +92,9 @@ fun ChatRoomScreen(graph: AppGraph, roomId: Long, myId: String, back: () -> Unit
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(onClick = back) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Назад") }
-            BloomMark(Modifier.size(34.dp))
+            PersonAvatar(partnerName ?: "Bloom", size = 40.dp)
             Column(Modifier.padding(start = 12.dp).weight(1f)) {
-                Text("Ваш разговор", style = MaterialTheme.typography.titleMedium)
+                Text(partnerName ?: "Ваш разговор", style = MaterialTheme.typography.titleMedium)
                 Text(
                     if (state.connected) "Можно говорить обо всём"
                     else if (state.connecting) "Подключаемся…" else "Нет соединения",

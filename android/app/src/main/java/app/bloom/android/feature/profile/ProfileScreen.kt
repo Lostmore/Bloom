@@ -82,53 +82,55 @@ fun ProfileScreen(
             }
         }
     }
-    Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = back) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Назад") }
-            Text("Знакомство", Modifier.weight(1f), style = MaterialTheme.typography.titleLarge)
-            if (id != myId)
-                IconButton(onClick = { blockDialog = true }) {
-                    Icon(Icons.Outlined.Block, "Заблокировать")
-                }
-        }
-        if (loading) LoadingBloom(Modifier.height(320.dp))
-        else if (profile != null) {
-            ProfileHero(profile!!)
-            if (id != myId) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    listOf("skip", "super-interest", "like").forEachIndexed { index, action ->
-                        FilledTonalIconButton(
-                            onClick = { react(action) },
-                            enabled = !busy,
-                            modifier = Modifier.size(64.dp),
-                            shape = CircleShape,
-                        ) {
-                            Icon(
-                                listOf(
-                                    Icons.Outlined.Close,
-                                    Icons.Outlined.StarOutline,
-                                    Icons.Outlined.FavoriteBorder,
-                                )[index],
-                                listOf("Пропустить", "Особый интерес", "Нравится")[index],
-                                Modifier.size(30.dp),
-                            )
+    ProfileCoverHost(profile) { coverModifier, openCover ->
+        Column(
+            coverModifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = back) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Назад") }
+                Text("Знакомство", Modifier.weight(1f), style = MaterialTheme.typography.titleLarge)
+                if (id != myId)
+                    IconButton(onClick = { blockDialog = true }) {
+                        Icon(Icons.Outlined.Block, "Заблокировать")
+                    }
+            }
+            if (loading) LoadingBloom(Modifier.height(320.dp))
+            else if (profile != null) {
+                ProfileHero(profile!!, openCover = openCover)
+                if (id != myId) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                        listOf("skip", "super-interest", "like").forEachIndexed { index, action ->
+                            FilledTonalIconButton(
+                                onClick = { react(action) },
+                                enabled = !busy,
+                                modifier = Modifier.size(64.dp),
+                                shape = CircleShape,
+                            ) {
+                                Icon(
+                                    listOf(
+                                        Icons.Outlined.Close,
+                                        Icons.Outlined.StarOutline,
+                                        Icons.Outlined.FavoriteBorder,
+                                    )[index],
+                                    listOf("Пропустить", "Особый интерес", "Нравится")[index],
+                                    Modifier.size(30.dp),
+                                )
+                            }
                         }
                     }
                 }
+                feedback?.let {
+                    Text(
+                        it,
+                        Modifier.align(Alignment.CenterHorizontally),
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
             }
-            feedback?.let {
-                Text(
-                    it,
-                    Modifier.align(Alignment.CenterHorizontally),
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
+            ErrorMessage(error)
+            if (!loading && profile == null) TextButton(onClick = { retry++ }) { Text("Повторить") }
         }
-        ErrorMessage(error)
-        if (!loading && profile == null) TextButton(onClick = { retry++ }) { Text("Повторить") }
     }
     if (matched)
         AlertDialog(

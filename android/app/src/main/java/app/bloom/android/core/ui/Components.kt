@@ -30,7 +30,7 @@ fun BloomButton(
                 .fillMaxWidth()
                 .heightIn(min = 54.dp)
                 .background(
-                    Brush.horizontalGradient(listOf(Color(0xFFFF759D), Color(0xFFD94CEE))),
+                    Brush.horizontalGradient(listOf(Color(0xFFFF657C), Color(0xFFE92B82))),
                     RoundedCornerShape(22.dp),
                 ),
         shape = RoundedCornerShape(22.dp),

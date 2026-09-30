@@ -10,6 +10,7 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 
 class AppGraph(context: Context) {
+    val chatPreviews = app.bloom.android.feature.chat.ChatPreviews()
     val preferences = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
     val baseUrl =
         ApiAddress.parse(

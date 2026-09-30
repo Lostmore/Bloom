@@ -1,7 +1,6 @@
 package app.bloom.android.core.ui
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -34,11 +33,15 @@ fun BloomApp(
         mutableStateOf(graph.preferences.getString("theme", "light") ?: "light")
     }
     val session by graph.sessions.session.collectAsStateWithLifecycle()
+    LaunchedEffect(session == null) {
+        if (session == null) graph.chatPreviews.clear()
+    }
     val scope = rememberCoroutineScope()
     val logout: () -> Unit = {
         scope.launch {
             val refresh = graph.sessions.session.value?.refreshToken
             withContext(Dispatchers.IO) { graph.sessions.clear() }
+            graph.chatPreviews.clear()
             if (refresh != null) {
                 try {
                     graph.identity.logout(app.bloom.android.core.model.RefreshRequest(refresh))
@@ -158,15 +161,8 @@ private fun MainNavigation(
     val nav = rememberNavController()
     val entry by nav.currentBackStackEntryAsState()
     val route = entry?.destination?.route
-    val tabs = listOf("feed", "matches", "chats", "me")
-    val labels = listOf("Для тебя", "Совпадения", "Чаты", "Профиль")
-    val icons =
-        listOf(
-            Icons.Outlined.Home,
-            Icons.Outlined.FavoriteBorder,
-            Icons.Outlined.ChatBubbleOutline,
-            Icons.Outlined.PersonOutline,
-        )
+    val tabs = MainTabs
+    var feedMode by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
     LaunchedEffect(profileLink) {
         if (profileLink != null) {
             nav.navigate("profile/$profileLink")
@@ -187,26 +183,31 @@ private fun MainNavigation(
         contentWindowInsets = WindowInsets(0),
         bottomBar = {
             if (route in tabs)
-                NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-                    tabs.forEachIndexed { index, tab ->
-                        NavigationBarItem(
-                            route == tab,
-                            onClick = {
-                                nav.navigate(tab) {
-                                    popUpTo("feed") { saveState = true }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            },
-                            icon = { Icon(icons[index], null) },
-                            label = { Text(labels[index], maxLines = 1) },
-                        )
+                BloomBottomBar(route) { tab ->
+                    nav.navigate(tab) {
+                        popUpTo("feed") { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
                     }
                 }
         },
     ) { padding ->
         NavHost(nav, "feed", Modifier.padding(padding)) {
-            composable("feed") { DiscoveryScreen(graph, { nav.navigate("profile/$it") }) }
+            composable("feed") {
+                DiscoveryScreen(graph, { nav.navigate("profile/$it") }, feedMode, { feedMode = it })
+            }
+            composable("explore") {
+                app.bloom.android.feature.discovery.ExploreScreen(
+                    { mode ->
+                        feedMode = mode
+                        nav.navigate("feed") {
+                            popUpTo("feed")
+                            launchSingleTop = true
+                        }
+                    },
+                    { nav.navigate("profile/$it") },
+                )
+            }
             composable("matches") {
                 MatchesScreen(
                     graph,
