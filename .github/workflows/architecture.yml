@@ -2,7 +2,7 @@ name: Bloom Architecture
 
 on:
   push:
-    paths: ['server/**', 'assets/brand/**', 'compose.yml', 'docs/architecture/**', 'infrastructure/architecture/**', '.github/workflows/architecture.yml']
+    branches: [develop]
   pull_request:
     paths: ['server/**', 'assets/brand/**', 'compose.yml', 'docs/architecture/**', 'infrastructure/architecture/**', '.github/workflows/architecture.yml']
   workflow_dispatch:
