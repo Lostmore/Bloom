@@ -14,7 +14,8 @@ interface UsersApi {
 
     @GET("interests") suspend fun interests(): List<Interest>
 
-    @PUT("users/me/interests") suspend fun interests(@Body body: Map<String, List<String>>): List<String>
+    @PUT("users/me/interests")
+    suspend fun interests(@Body body: Map<String, @JvmSuppressWildcards List<String>>): List<String>
 
     @POST("users/{id}/block") suspend fun block(@Path("id") id: String)
 

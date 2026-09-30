@@ -4,7 +4,9 @@ import android.content.Intent
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import app.bloom.android.AppGraph
 import app.bloom.android.core.model.Profile
 import app.bloom.android.core.network.userMessage
@@ -23,6 +25,12 @@ fun MyProfileScreen(
     logout: () -> Unit,
 ) {
     var settings by remember { mutableStateOf(false) }
+    var photos by remember { mutableStateOf(false) }
+    val photoStore =
+        remember(me.id) {
+            OnboardingStore(graph.preferences, graph.baseUrl.toString(), graph.sessions.session.value!!.accessToken)
+        }
+    var photoDraft by remember(me.id) { mutableStateOf(photoStore.photos()) }
     var edit by remember { mutableStateOf(false) }
     var interests by remember { mutableStateOf(false) }
     var privacy by remember { mutableStateOf(false) }
@@ -55,6 +63,10 @@ fun MyProfileScreen(
                 settings = false
                 delete = true
             },
+            {
+                settings = false
+                photos = true
+            },
         ) {
             scope.launch {
                 busy = true
@@ -68,6 +80,21 @@ fun MyProfileScreen(
                 } finally {
                     busy = false
                 }
+            }
+        }
+    if (photos)
+        ModalBottomSheet(
+            onDismissRequest = { photos = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        ) {
+            Column(Modifier.padding(24.dp)) {
+                Text("Твои фото", style = MaterialTheme.typography.headlineMedium)
+                Spacer(Modifier.height(16.dp))
+                OnboardingPhotos(photoDraft) {
+                    photoDraft = it
+                    photoStore.savePhotos(it)
+                }
+                TextButton(onClick = { photos = false }) { Text("Готово") }
             }
         }
     if (edit)

@@ -55,7 +55,7 @@ fun BloomApp(
     }
     BloomTheme(theme) {
         Surface(Modifier.fillMaxSize()) {
-            Box(Modifier.safeDrawingPadding()) {
+            Box {
                 if (session == null)
                     AuthScreen(
                         graph,
@@ -67,17 +67,19 @@ fun BloomApp(
                         changeServer,
                     )
                 else
-                    AuthenticatedApp(
-                        graph,
-                        profileLink,
-                        consumeLink,
-                        theme,
-                        { next ->
-                            theme = next
-                            graph.preferences.edit().putString("theme", next).apply()
-                        },
-                        logout,
-                    )
+                    Box(Modifier.safeDrawingPadding()) {
+                        AuthenticatedApp(
+                            graph,
+                            profileLink,
+                            consumeLink,
+                            theme,
+                            { next ->
+                                theme = next
+                                graph.preferences.edit().putString("theme", next).apply()
+                            },
+                            logout,
+                        )
+                    }
             }
         }
     }
@@ -97,6 +99,9 @@ private fun AuthenticatedApp(
     var missing by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var reload by remember { mutableIntStateOf(0) }
+    val onboarding = remember {
+        OnboardingStore(graph.preferences, graph.baseUrl.toString(), graph.sessions.session.value!!.accessToken)
+    }
     LaunchedEffect(reload) {
         loading = true
         error = null
@@ -114,9 +119,11 @@ private fun AuthenticatedApp(
     }
     when {
         loading -> LoadingBloom()
-        missing ->
+        missing || onboarding.pending() ->
             OnboardingScreen(
                 graph,
+                onboarding,
+                profile,
                 {
                     profile = it
                     missing = false

@@ -19,6 +19,7 @@ fun ProfileSettingsSheet(
     dismiss: () -> Unit,
     logout: () -> Unit,
     delete: () -> Unit,
+    photos: () -> Unit,
     refresh: () -> Unit,
 ) {
     ModalBottomSheet(
@@ -40,11 +41,7 @@ fun ProfileSettingsSheet(
             OutlinedButton(onClick = refresh, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
                 Text("Обновить анкету")
             }
-            Text(
-                "Фотографии и вложения пока недоступны.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            OutlinedButton(onClick = photos, modifier = Modifier.fillMaxWidth()) { Text("Фото · локальный черновик") }
             HorizontalDivider()
             TextButton(onClick = logout, enabled = !busy) { Text("Выйти из аккаунта") }
             TextButton(onClick = delete, enabled = !busy) {

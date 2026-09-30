@@ -1,109 +1,110 @@
 package app.bloom.android.feature.auth
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.*
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import app.bloom.android.core.ui.*
+import androidx.compose.ui.unit.sp
+import app.bloom.android.R
+import app.bloom.android.core.ui.BloomButton
+import app.bloom.android.core.ui.BloomMark
 
 @Composable
-fun WelcomeContent() {
-    Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
-        Box(
-            Modifier.fillMaxWidth()
-                .height(172.dp)
-                .background(
-                    Brush.radialGradient(
-                        listOf(
-                            MaterialTheme.colorScheme.primaryContainer,
-                            MaterialTheme.colorScheme.background,
-                        )
-                    ),
-                    RoundedCornerShape(36.dp),
-                ),
-            contentAlignment = Alignment.Center,
-        ) {
-            BloomMark(Modifier.align(Alignment.TopCenter).padding(top = 12.dp).size(100.dp))
-            Surface(
-                Modifier.align(Alignment.BottomEnd).padding(12.dp),
-                shape = RoundedCornerShape(20.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant,
-            ) {
-                Text(
-                    "Больше, чем знакомства",
-                    Modifier.padding(horizontal = 16.dp, vertical = 9.dp),
-                    style = MaterialTheme.typography.labelLarge,
-                )
-            }
-        }
-        Text("Люди. Моменты.\nВозможности.", style = MaterialTheme.typography.headlineLarge)
-        Text(
-            "Влюбиться, найти друзей или просто поговорить. Здесь можно быть собой — и встретить своих.",
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            style = MaterialTheme.typography.bodyLarge,
-        )
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                GoalCard(
-                    "Любовь",
-                    "Твоя особенная история",
-                    Icons.Outlined.FavoriteBorder,
-                    Modifier.weight(1f),
-                    Color(0xFFFF719F),
-                )
-                GoalCard(
-                    "Друзья",
-                    "На одной волне",
-                    Icons.Outlined.PeopleOutline,
-                    Modifier.weight(1f),
-                    Color(0xFF42BE91),
-                )
-            }
-            Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                GoalCard(
-                    "Активности",
-                    "Вместе интереснее",
-                    Icons.Outlined.LocalActivity,
-                    Modifier.weight(1f),
-                    Color(0xFFFFAC54),
-                )
-                GoalCard(
-                    "Всё сразу",
-                    "Без лишних границ",
-                    Icons.Outlined.AllInclusive,
-                    Modifier.weight(1f),
-                    Color(0xFFAF70F3),
-                )
-            }
+fun WelcomeContent(register: () -> Unit = {}, login: () -> Unit = {}, serverSettings: (() -> Unit)? = null) {
+    val view = LocalView.current
+    DisposableEffect(view) {
+        val activity =
+            generateSequence(view.context) { (it as? android.content.ContextWrapper)?.baseContext }
+                .filterIsInstance<android.app.Activity>()
+                .firstOrNull()
+        val controller = activity?.let { androidx.core.view.WindowCompat.getInsetsController(it.window, view) }
+        val oldStatus = controller?.isAppearanceLightStatusBars
+        val oldNavigation = controller?.isAppearanceLightNavigationBars
+        controller?.isAppearanceLightStatusBars = false
+        controller?.isAppearanceLightNavigationBars = false
+        onDispose {
+            if (oldStatus != null) controller.isAppearanceLightStatusBars = oldStatus
+            if (oldNavigation != null) controller.isAppearanceLightNavigationBars = oldNavigation
         }
     }
-}
-
-@Composable
-private fun GoalCard(
-    title: String,
-    subtitle: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    modifier: Modifier,
-    accent: Color,
-) {
-    Surface(modifier.fillMaxHeight(), shape = RoundedCornerShape(24.dp), color = accent.copy(alpha = 0.1f)) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Icon(icon, null, Modifier.size(30.dp), tint = accent)
-            Text(title, style = MaterialTheme.typography.titleMedium)
-            Text(
-                subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+    Box(Modifier.fillMaxSize().background(Color(0xFF17151D))) {
+        Image(
+            painterResource(R.drawable.welcome_sunset),
+            null,
+            Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop,
+        )
+        Box(
+            Modifier.fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color.Black.copy(alpha = 0.12f), Color.Transparent, Color(0xEE111017))
+                    )
+                )
+        )
+        Column(Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal = 26.dp)) {
+            Row(Modifier.fillMaxWidth().padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                BloomMark(Modifier.size(30.dp))
+                Text(
+                    "Bloom",
+                    Modifier.weight(1f).padding(start = 8.dp),
+                    color = Color.White,
+                    fontSize = 27.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+                if (serverSettings != null)
+                    IconButton(onClick = serverSettings) {
+                        Icon(Icons.Outlined.Settings, "Адрес сервера", tint = Color.White)
+                    }
+            }
+            Spacer(Modifier.weight(1f))
+            Column(
+                Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(bottom = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                Text(
+                    "Больше, чем\nзнакомства",
+                    color = Color.White,
+                    fontSize = 38.sp,
+                    lineHeight = 42.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    "Твои люди. Ваши моменты.\nИстории, которые начинаются здесь.",
+                    color = Color.White.copy(alpha = 0.85f),
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                Spacer(Modifier.height(8.dp))
+                BloomButton("Создать аккаунт", register)
+                OutlinedButton(
+                    onClick = login,
+                    modifier = Modifier.fillMaxWidth().height(54.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.6f)),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                ) {
+                    Text("Войти", style = MaterialTheme.typography.titleMedium)
+                }
+                Text(
+                    "Знакомства, дружба и всё, что между ними. 18+",
+                    color = Color.White.copy(alpha = 0.65f),
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            }
         }
     }
 }

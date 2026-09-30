@@ -1,5 +1,6 @@
 package app.bloom.android.feature.auth
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -41,44 +42,44 @@ fun AuthScreen(
     var error by remember { mutableStateOf<String?>(null) }
     var serverDialog by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    BackHandler(enabled = form) { if (!loading) form = false }
 
-    Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp),
-    ) {
-        Spacer(Modifier.height(24.dp))
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            BloomBrand(Modifier.weight(1f))
-            IconButton(onClick = toggleTheme) {
-                Icon(
-                    if (theme == "dark") Icons.Outlined.LightMode else Icons.Outlined.DarkMode,
-                    "Переключить тему",
-                )
-            }
-            if (BuildConfig.DEBUG)
-                IconButton(onClick = { serverDialog = true }) {
-                    Icon(Icons.Outlined.Settings, "Адрес сервера")
+    if (!form) {
+        WelcomeContent(
+            register = {
+                form = true
+                register = true
+            },
+            login = {
+                form = true
+                register = false
+            },
+            serverSettings = if (BuildConfig.DEBUG) ({ serverDialog = true }) else null,
+        )
+    } else {
+        Column(
+            Modifier.fillMaxSize()
+                .safeDrawingPadding()
+                .imePadding()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp),
+        ) {
+            Spacer(Modifier.height(24.dp))
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                BloomBrand(Modifier.weight(1f))
+                IconButton(onClick = toggleTheme) {
+                    Icon(
+                        if (theme == "dark") Icons.Outlined.LightMode else Icons.Outlined.DarkMode,
+                        "Переключить тему",
+                    )
                 }
-        }
-        if (!form) {
-            WelcomeContent()
-            BloomButton(
-                "Найти своих людей →",
-                {
-                    form = true
-                    register = true
-                },
-            )
-            TextButton(
-                onClick = {
-                    form = true
-                    register = false
-                },
-                Modifier.align(Alignment.CenterHorizontally),
-            ) {
-                Text("У меня уже есть аккаунт")
+                if (BuildConfig.DEBUG)
+                    IconButton(onClick = { serverDialog = true }) {
+                        Icon(Icons.Outlined.Settings, "Адрес сервера")
+                    }
             }
-        } else {
+
             TextButton(onClick = { form = false }) { Text("← Назад") }
             Text(
                 if (register) "Хорошее начинается\nсо знакомства" else "Рады, что ты здесь",
