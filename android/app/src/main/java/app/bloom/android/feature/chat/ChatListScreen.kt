@@ -26,6 +26,7 @@ fun ChatListScreen(
 ) {
     var rooms by remember { mutableStateOf<List<ChatRoom>>(emptyList()) }
     var names by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var nameFailures by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var reload by remember { mutableIntStateOf(0) }
@@ -96,7 +97,7 @@ fun ChatListScreen(
         loading = true
         error = null
         try {
-            rooms = graph.chat.rooms().orEmpty().filter { it.active }
+            rooms = graph.chat.rooms().orEmpty().filter { it.active }.distinctBy { it.id }
             val limit = Semaphore(4)
             coroutineScope {
                 rooms
@@ -106,10 +107,16 @@ fun ChatListScreen(
                                 val id = room.partner(myId)
                                 try {
                                     names = names + (id to graph.users.profile(id).nickname)
+                                    nameFailures = nameFailures - id
                                 } catch (exception: CancellationException) {
                                     throw exception
-                                } catch (_: Exception) {
-                                    /* Hidden profiles must not hide conversations. */
+                                } catch (exception: Exception) {
+                                    names = names - id
+                                    nameFailures =
+                                        nameFailures +
+                                            (id to
+                                                (exception is retrofit2.HttpException &&
+                                                    exception.code() in listOf(403, 404)))
                                 }
                             }
                         }
@@ -125,25 +132,26 @@ fun ChatListScreen(
         }
     }
     val items =
-        rooms.sortedWith(compareByDescending<ChatRoom> { previews[it.id]?.id ?: 0 }.thenByDescending { it.id }).map {
-            room ->
-            val last = previews[room.id]
-            ChatRowItem(
-                room.id,
-                names[room.partner(myId)] ?: "Собеседник",
-                last?.let {
-                    (if (it.senderId == myId) "Вы: " else "") +
-                        (bloomSticker(it.content)?.let { sticker -> "Стикер · ${sticker.caption}" }
-                            ?: it.content?.takeIf(String::isNotBlank)
-                            ?: "Вложение")
-                },
-                last?.createdAt,
-            )
-        }
+        rooms
+            .map { room ->
+                val id = room.partner(myId)
+                val name =
+                    names[id]
+                        ?: when (nameFailures[id]) {
+                            true -> "Профиль недоступен"
+                            false -> "Имя не загрузилось"
+                            null -> "Собеседник"
+                        }
+                chatRoomPreview(room, previews[room.id], myId, name)
+            }
+            .sortedWith(compareByDescending<ChatRowItem> { chatTimestamp(it.timestamp) }.thenByDescending { it.id })
     ChatsContent(
         items,
         loading,
-        error,
+        error
+            ?: if (nameFailures.values.any { !it })
+                "Не удалось получить часть имён из Users. Потяни список вниз, чтобы повторить."
+            else null,
         { if (!loading) reload++ },
         openChat,
         searchResults =
