@@ -18,6 +18,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.bloom.android.R
@@ -58,24 +59,27 @@ fun WelcomeContent(register: () -> Unit = {}, login: () -> Unit = {}, serverSett
                 )
         )
         Column(Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal = 26.dp)) {
-            Row(Modifier.fillMaxWidth().padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                BloomMark(Modifier.size(30.dp))
-                Text(
-                    "Bloom",
-                    Modifier.weight(1f).padding(start = 8.dp),
-                    color = Color.White,
-                    fontSize = 27.sp,
-                    fontWeight = FontWeight.Bold,
-                )
+            Box(Modifier.fillMaxWidth().padding(top = 20.dp)) {
+                Row(Modifier.align(Alignment.Center), verticalAlignment = Alignment.CenterVertically) {
+                    BloomMark(Modifier.size(40.dp))
+                    Text(
+                        "Bloom",
+                        Modifier.padding(start = 10.dp),
+                        color = Color.White,
+                        fontSize = 42.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
                 if (serverSettings != null)
-                    IconButton(onClick = serverSettings) {
+                    IconButton(onClick = serverSettings, modifier = Modifier.align(Alignment.CenterEnd)) {
                         Icon(Icons.Outlined.Settings, "Адрес сервера", tint = Color.White)
                     }
             }
             Spacer(Modifier.weight(1f))
             Column(
-                Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(bottom = 20.dp),
+                Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(
                     "Больше, чем\nзнакомства",
@@ -83,11 +87,13 @@ fun WelcomeContent(register: () -> Unit = {}, login: () -> Unit = {}, serverSett
                     fontSize = 38.sp,
                     lineHeight = 42.sp,
                     fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
                 )
                 Text(
                     "Твои люди. Ваши моменты.\nИстории, которые начинаются здесь.",
                     color = Color.White.copy(alpha = 0.85f),
                     style = MaterialTheme.typography.bodyLarge,
+                    textAlign = TextAlign.Center,
                 )
                 Spacer(Modifier.height(8.dp))
                 BloomButton("Создать аккаунт", register)
@@ -99,12 +105,14 @@ fun WelcomeContent(register: () -> Unit = {}, login: () -> Unit = {}, serverSett
                 ) {
                     Text("Войти", style = MaterialTheme.typography.titleMedium)
                 }
-                Text(
-                    "Знакомства, дружба и всё, что между ними. 18+",
-                    color = Color.White.copy(alpha = 0.65f),
-                    style = MaterialTheme.typography.labelSmall,
-                )
             }
+            Text(
+                "Знакомства, дружба и всё, что между ними. 18+",
+                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                color = Color.White.copy(alpha = 0.65f),
+                style = MaterialTheme.typography.labelSmall,
+                textAlign = TextAlign.Center,
+            )
         }
     }
 }

@@ -38,10 +38,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
         response.setHeader("Cache-Control", "no-store");
+        if (request.getContentLengthLong() > 16384) {
+            response.sendError(413);
+            return;
+        }
         try {
             if (request.getRequestURI().startsWith("/internal/")) {
                 String supplied = request.getHeader("X-Internal-Token");
-                if (supplied == null || !MessageDigest.isEqual(serviceToken, supplied.getBytes(StandardCharsets.UTF_8))) {
+                if (supplied == null || supplied.length() > 1024 || !MessageDigest.isEqual(serviceToken, supplied.getBytes(StandardCharsets.UTF_8))) {
                     response.sendError(401);
                     return;
                 }
@@ -52,7 +56,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 }
                 String header = request.getHeader("Authorization");
                 if (header != null) {
-                    if (!header.startsWith("Bearer ")) {
+                    if (!header.startsWith("Bearer ") || header.length() > 4103) {
                         throw new AuthenticationException();
                     }
                     authenticate(validator.validate(header.substring(7)), "ROLE_USER");
@@ -68,7 +72,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             response.sendError(exception.getStatusCode().value());
             return;
         }
-        chain.doFilter(request, response);
+        if (List.of("POST", "PUT", "PATCH").contains(request.getMethod())) {
+            byte[] body = request.getInputStream().readNBytes(16385);
+            if (body.length > 16384) {
+                response.sendError(413);
+                return;
+            }
+            chain.doFilter(new BoundedJsonRequest(request, body), response);
+        } else {
+            chain.doFilter(request, response);
+        }
     }
 
     private void authenticate(Object principal, String authority) {

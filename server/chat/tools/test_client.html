@@ -175,9 +175,11 @@
                 if (res.ok) {
                     const rooms = await res.json();
                     const list = document.getElementById("roomsList");
-                    list.innerHTML = "";
+                    list.replaceChildren();
                     if (!rooms || rooms.length === 0) {
-                        list.innerHTML = "<li>Нет чатов</li>";
+                        const empty = document.createElement("li");
+                        empty.textContent = "Нет чатов";
+                        list.appendChild(empty);
                         return;
                     }
                     rooms.forEach(room => {
@@ -201,7 +203,7 @@
             if (ws) { ws.close(); } 
             
             document.getElementById("chatTitle").innerText = `Чат с User (ID: ${otherUserId.substring(0,8)}...)`;
-            document.getElementById("chat").innerHTML = ""; 
+            document.getElementById("chat").replaceChildren();
             
             try {
                 // Подключаемся к вебсокету, передавая реальный токен!
@@ -282,7 +284,11 @@
                 previewDiv.innerText = "";
                 return;
             }
-            previewDiv.innerHTML = `Прикреплено файлов: <b>${uploadedFiles.length}</b>. <button onclick="clearAttachments()">Удалить всё</button>`;
+            previewDiv.textContent = `Прикреплено файлов: ${uploadedFiles.length}. `;
+            const clear = document.createElement("button");
+            clear.textContent = "Удалить всё";
+            clear.onclick = clearAttachments;
+            previewDiv.appendChild(clear);
         }
 
         function clearAttachments() {
@@ -305,22 +311,82 @@
             clearAttachments(); 
         }
 
+        function safeMediaUrl(value) {
+            if (typeof value !== "string") return null;
+            try {
+                const url = new URL(value, window.location.origin);
+                if (url.origin !== window.location.origin || !["http:", "https:"].includes(url.protocol)
+                    || url.username || url.password || url.search || url.hash
+                    || !/^\/api\/v1\/media\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(url.pathname)) return null;
+                return url.href;
+            } catch (_) { return null; }
+        }
+
+        async function downloadMedia(url, button) {
+            // Never navigate to unverified Media content: HTML/SVG may contain scripts.
+            const safeUrl = safeMediaUrl(url);
+            if (!safeUrl) return;
+            button.disabled = true;
+            try {
+                const response = await fetch(safeUrl, {
+                    headers: { Authorization: "Bearer " + accessToken },
+                    redirect: "error",
+                    credentials: "omit",
+                    signal: AbortSignal.timeout(30000)
+                });
+                if (!response.ok) throw new Error("Не удалось скачать файл");
+                const reader = response.body.getReader();
+                const chunks = [];
+                let size = 0;
+                try {
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        size += value.byteLength;
+                        if (size > 10 * 1024 * 1024) throw new Error("Файл слишком большой");
+                        chunks.push(value);
+                    }
+                } finally { await reader.cancel(); }
+                const blob = new Blob(chunks, { type: "application/octet-stream" });
+                const blobUrl = URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.href = blobUrl;
+                link.download = "bloom-attachment.bin";
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+            } catch (_) {
+                alert("Не удалось скачать файл. Проверь доступ и подключение.");
+            } finally { button.disabled = false; }
+        }
+
         function printMsg(sender, text, className, attachments) {
             const chatDiv = document.getElementById("chat");
             const div = document.createElement("div");
-            div.className = "message " + className;
+            div.className = className === "system" ? "message system" : "message";
+            const author = document.createElement("b");
+            author.textContent = `${sender}: `;
+            div.appendChild(author);
+            div.appendChild(document.createTextNode(typeof text === "string" ? text : ""));
             
-            let htmlContent = `<b>${sender}:</b> ${text || ""}`;
-            
-            if (attachments && attachments.length > 0) {
-                htmlContent += `<br><br><b>Прикреплённые файлы:</b><ul style="margin: 5px 0; padding-left: 20px;">`;
-                attachments.forEach(url => {
-                    htmlContent += `<li><a href="${url}" target="_blank">Открыть медиа</a></li>`;
+            if (Array.isArray(attachments) && attachments.length > 0) {
+                const list = document.createElement("ul");
+                attachments.forEach(value => {
+                    const item = document.createElement("li");
+                    const url = safeMediaUrl(value);
+                    if (url) {
+                        const button = document.createElement("button");
+                        button.textContent = "Скачать файл (без предпросмотра)";
+                        button.onclick = () => downloadMedia(url, button);
+                        item.appendChild(button);
+                    } else {
+                        item.textContent = "Недопустимая ссылка на вложение";
+                    }
+                    list.appendChild(item);
                 });
-                htmlContent += `</ul>`;
+                div.appendChild(list);
             }
-            
-            div.innerHTML = htmlContent;
             chatDiv.appendChild(div);
             chatDiv.scrollTop = chatDiv.scrollHeight;
         }
