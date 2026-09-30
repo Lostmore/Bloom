@@ -11,6 +11,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -22,6 +23,9 @@ fun BloomButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
 ) {
+    val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val buttonColors =
+        if (dark) listOf(Color(0xFF795663), Color(0xFF795663)) else listOf(Color(0xFFFF657C), Color(0xFFE92B82))
     Button(
         onClick = onClick,
         enabled = enabled,
@@ -30,7 +34,7 @@ fun BloomButton(
                 .fillMaxWidth()
                 .heightIn(min = 54.dp)
                 .background(
-                    Brush.horizontalGradient(listOf(Color(0xFFFF657C), Color(0xFFE92B82))),
+                    Brush.horizontalGradient(buttonColors),
                     RoundedCornerShape(22.dp),
                 ),
         shape = RoundedCornerShape(22.dp),

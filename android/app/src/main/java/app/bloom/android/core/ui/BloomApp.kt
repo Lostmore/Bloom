@@ -223,7 +223,14 @@ private fun MainNavigation(
                     { nav.navigate("room/$it") },
                 )
             }
-            composable("chats") { ChatListScreen(graph, me.id) { nav.navigate("room/$it") } }
+            composable("chats") {
+                ChatListScreen(
+                    graph,
+                    me.id,
+                    { nav.navigate("room/$it") },
+                    { room, message -> nav.navigate("room/$room?message=$message") },
+                )
+            }
             composable("me") { MyProfileScreen(graph, me, updateMe, theme, setTheme, logout) }
             composable("profile/{id}") { stack ->
                 ProfileScreen(
@@ -234,8 +241,23 @@ private fun MainNavigation(
                     { nav.navigate("room/$it") },
                 )
             }
-            composable("room/{id}") { stack ->
-                ChatRoomScreen(graph, stack.arguments!!.getString("id")!!.toLong(), me.id) {
+            composable(
+                "room/{id}?message={message}",
+                arguments =
+                    listOf(
+                        androidx.navigation.navArgument("message") {
+                            nullable = true
+                            defaultValue = null
+                            type = androidx.navigation.NavType.StringType
+                        }
+                    ),
+            ) { stack ->
+                ChatRoomScreen(
+                    graph,
+                    stack.arguments!!.getString("id")!!.toLong(),
+                    me.id,
+                    stack.arguments?.getString("message")?.toLongOrNull(),
+                ) {
                     nav.popBackStack()
                 }
             }

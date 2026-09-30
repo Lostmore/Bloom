@@ -68,9 +68,9 @@ class MainScreensDesignTest {
         }
         compose.waitForIdle()
         assertTrue("Pull-down must refresh conversations", refreshed > 0)
-        compose.onNodeWithText("Обзор").performClick()
+        compose.onNodeWithContentDescription("Обзор").performClick()
         assertEquals("explore", destination)
-        listOf("Люди", "Обзор", "Симпатии", "Профиль").forEach { compose.onNodeWithText(it).assertIsDisplayed() }
+        listOf("Люди", "Обзор", "Симпатии", "Профиль").forEach { compose.onNodeWithContentDescription(it).assertIsDisplayed() }
     }
 
     private fun profile(theme: String) {

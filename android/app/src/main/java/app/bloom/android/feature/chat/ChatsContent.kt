@@ -21,6 +21,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import app.bloom.android.core.model.ChatMessage
 import app.bloom.android.core.ui.*
 import java.time.OffsetDateTime
 import java.time.ZoneId
@@ -36,14 +37,21 @@ fun ChatsContent(
     error: String?,
     refresh: () -> Unit,
     openChat: (Long) -> Unit,
+    searchResults: List<ChatMessage> = emptyList(),
+    searching: Boolean = false,
+    searchNotice: String? = null,
+    queryChanged: (String) -> Unit = {},
+    openMessage: (Long, Long) -> Unit = { room, _ -> openChat(room) },
+    moreResults: (() -> Unit)? = null,
 ) {
     var query by rememberSaveable { mutableStateOf("") }
+    LaunchedEffect(query) { queryChanged(query) }
     val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val background =
-        if (dark) listOf(Color(0xFF35091F), Color(0xFF1C101B), Color(0xFF140D15))
+        if (dark) listOf(MaterialTheme.colorScheme.background, MaterialTheme.colorScheme.background)
         else listOf(Color(0xFFFFF1F6), Color(0xFFFFFCFD), Color(0xFFFFFCFD))
     val filtered = items.filter {
-        it.name.contains(query.trim(), true) || it.preview.orEmpty().contains(query.trim(), true)
+        it.name.contains(query.trim(), true)
     }
     Column(Modifier.fillMaxSize().background(Brush.verticalGradient(background))) {
         Row(
@@ -54,9 +62,9 @@ fun ChatsContent(
         }
         OutlinedTextField(
             query,
-            { query = it },
+            { query = it.take(200) },
             Modifier.fillMaxWidth().padding(horizontal = 20.dp).testTag("chat-search"),
-            placeholder = { Text("Поиск сообщений") },
+            placeholder = { Text("Поиск") },
             singleLine = true,
             shape = RoundedCornerShape(18.dp),
             leadingIcon = { Icon(Icons.Outlined.Search, null) },
@@ -86,7 +94,7 @@ fun ChatsContent(
                         Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text("Сообщения", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+                        Text("Чаты", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
                         Text(
                             if (query.isEmpty()) "${items.size}" else "${filtered.size}",
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -95,8 +103,39 @@ fun ChatsContent(
                     }
                 }
                 if (error != null) item { Box(Modifier.padding(20.dp)) { ErrorMessage(error) } }
-                items(filtered, key = { it.id }) { chat -> ConversationRow(chat) { openChat(chat.id) } }
-                if (filtered.isEmpty() && !refreshing)
+                items(filtered, key = { "room-${it.id}" }) { chat -> ConversationRow(chat) { openChat(chat.id) } }
+                if (query.isNotBlank()) {
+                    item {
+                        Column(
+                            Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Text("Сообщения", style = MaterialTheme.typography.titleMedium)
+                            if (searchNotice != null)
+                                Text(
+                                    searchNotice,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            if (searching) LinearProgressIndicator(Modifier.fillMaxWidth())
+                        }
+                    }
+                    items(searchResults, key = { "message-${it.id}" }) { message ->
+                        ConversationRow(
+                            ChatRowItem(
+                                message.roomId,
+                                items.find { it.id == message.roomId }?.name ?: "Собеседник",
+                                message.content,
+                                message.createdAt,
+                            )
+                        ) {
+                            openMessage(message.roomId, message.id)
+                        }
+                    }
+                    if (moreResults != null)
+                        item { TextButton(onClick = moreResults, enabled = !searching) { Text("Показать ещё") } }
+                }
+                if (filtered.isEmpty() && searchResults.isEmpty() && !refreshing && !searching)
                     item {
                         EmptyBloom(
                             if (query.isBlank()) "Всё начинается с приветствия" else "Ничего не найдено",
@@ -136,14 +175,14 @@ private fun ConversationRow(chat: ChatRowItem, open: () -> Unit) {
                     )
                     chat.timestamp?.let { timestamp ->
                         Text(
-                            messageTime(timestamp),
+                            conversationTime(timestamp),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
                 Text(
-                    chat.preview ?: "Начните ваш разговор",
+                    chat.preview ?: "Открыть переписку",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodyMedium,
                     maxLines = 1,
@@ -158,7 +197,7 @@ private fun ConversationRow(chat: ChatRowItem, open: () -> Unit) {
     }
 }
 
-private fun messageTime(value: String): String = runCatching {
+private fun conversationTime(value: String): String = runCatching {
     val time = OffsetDateTime.parse(value).atZoneSameInstant(ZoneId.systemDefault())
     val pattern = if (time.toLocalDate() == java.time.LocalDate.now()) "HH:mm" else "dd.MM"
     time.format(DateTimeFormatter.ofPattern(pattern))

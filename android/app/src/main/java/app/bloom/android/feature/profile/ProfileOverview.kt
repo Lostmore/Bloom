@@ -13,7 +13,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
@@ -57,7 +56,7 @@ fun ProfileOverview(
                 PersonAvatar(
                     me.nickname,
                     Modifier.clickable(onClickLabel = "Открыть обложку", onClick = openCover)
-                        .border(3.dp, Brush.linearGradient(listOf(Color(0xFFFF698D), Color(0xFFE4318C))), CircleShape)
+                        .border(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.6f), CircleShape)
                         .padding(7.dp),
                     size = 118.dp,
                 )

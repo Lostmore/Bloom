@@ -1,5 +1,6 @@
 package app.bloom.android.feature.chat
 
+import app.bloom.android.core.model.Attachment
 import app.bloom.android.core.model.ChatMessage
 import app.bloom.android.core.security.SessionManager
 import com.google.gson.Gson
@@ -82,9 +83,13 @@ class ChatConnection(
     }
 
     @Synchronized
-    fun send(text: String): Boolean {
-        if (!mutable.value.connected || text.isBlank()) return false
-        return socket?.send(json.toJson(mapOf("content" to text.trim()))) == true
+    fun send(text: String, attachments: List<Attachment> = emptyList(), clientMessageId: String? = null): Boolean {
+        if (!mutable.value.connected || (text.isBlank() && attachments.isEmpty())) return false
+        val payload = mutableMapOf<String, Any>("content" to text.trim())
+        if (attachments.isNotEmpty())
+            payload["attachments"] = attachments.map { mapOf("media_id" to it.mediaId, "media_type" to it.mediaType) }
+        if (clientMessageId != null) payload["client_message_id"] = clientMessageId
+        return socket?.send(json.toJson(payload)) == true
     }
 
     private fun listener(attempt: Int) =

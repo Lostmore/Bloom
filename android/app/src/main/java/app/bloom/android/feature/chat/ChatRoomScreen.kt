@@ -2,12 +2,10 @@ package app.bloom.android.feature.chat
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.automirrored.outlined.Send
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -19,45 +17,71 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import app.bloom.android.AppGraph
+import app.bloom.android.core.model.ChatMessage
 import app.bloom.android.core.ui.*
-import java.time.OffsetDateTime
-import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
-fun ChatRoomScreen(graph: AppGraph, roomId: Long, myId: String, back: () -> Unit) {
-    val connection =
-        remember(graph, roomId) {
-            ChatConnection(graph.http, graph.sessions, graph.baseUrl, roomId)
-        }
+fun ChatRoomScreen(graph: AppGraph, roomId: Long, myId: String, targetMessageId: Long? = null, back: () -> Unit) {
+    val connection = remember(graph, roomId) { ChatConnection(graph.http, graph.sessions, graph.baseUrl, roomId) }
     val state by connection.state.collectAsStateWithLifecycle()
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val scope = rememberCoroutineScope()
-    var draft by remember { mutableStateOf("") }
-    var sendError by remember { mutableStateOf<String?>(null) }
-    var pendingText by remember { mutableStateOf<String?>(null) }
-    var sentAfter by remember { mutableLongStateOf(0) }
-    var partnerName by remember(roomId) { mutableStateOf<String?>(null) }
+    val list = rememberLazyListState()
+    var partner by remember(roomId) { mutableStateOf("Собеседник") }
+    var context by remember(roomId, targetMessageId) { mutableStateOf<List<ChatMessage>>(emptyList()) }
+    var contextNotice by remember { mutableStateOf<String?>(null) }
+    var focused by remember(targetMessageId) { mutableStateOf(targetMessageId != null) }
+    var jumped by remember(targetMessageId) { mutableStateOf(false) }
+    var showSearch by remember { mutableStateOf(false) }
+    var query by remember { mutableStateOf("") }
+    var matchIndex by remember(query) { mutableIntStateOf(0) }
+    val messages = if (focused && context.isNotEmpty()) context else state.messages
+    val hits =
+        remember(messages, query) {
+            if (query.isBlank()) emptyList()
+            else messages.filter { it.content.orEmpty().contains(query.trim(), true) }.map { it.id }
+        }
+    val highlighted = if (showSearch) hits.getOrNull(matchIndex) else if (focused) targetMessageId else null
+    LaunchedEffect(hits.size) { matchIndex = matchIndex.coerceIn(0, hits.lastIndex.coerceAtLeast(0)) }
     LaunchedEffect(roomId) {
         try {
-            val room = graph.chat.rooms().orEmpty().find { it.id == roomId }
-            if (room != null) partnerName = graph.users.profile(room.partner(myId)).nickname
-        } catch (exception: kotlinx.coroutines.CancellationException) {
+            graph.chat
+                .rooms()
+                .orEmpty()
+                .find { it.id == roomId }
+                ?.let { partner = graph.users.profile(it.partner(myId)).nickname }
+        } catch (exception: CancellationException) {
             throw exception
-        } catch (_: Exception) {
-            /* Private or unavailable profile: keep the conversation open. */
+        } catch (_: Exception) {}
+    }
+    LaunchedEffect(targetMessageId) {
+        if (targetMessageId != null) {
+            try {
+                context = graph.chat.context(roomId, targetMessageId).items.orEmpty().filter { it.roomId == roomId }
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (exception: Exception) {
+                val denied = exception is retrofit2.HttpException && exception.code() in listOf(401, 403)
+                context = if (denied) emptyList() else graph.chatPreviews.history.value.filter { it.roomId == roomId }
+                contextNotice =
+                    if (denied) "Нет доступа к этому сообщению."
+                    else "Показана загруженная история. Сервер пока не вернул фрагмент переписки."
+            }
         }
     }
-    val list = rememberLazyListState()
     LaunchedEffect(connection, lifecycle) {
         lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
             try {
                 connection.connect()
                 while (true) {
                     delay(60_000)
-                    val session = graph.sessions.session.value
-                    if (session != null && session.expiresAt <= System.currentTimeMillis() + 60_000)
+                    if (
+                        (graph.sessions.session.value?.expiresAt ?: Long.MAX_VALUE) <=
+                            System.currentTimeMillis() + 60_000
+                    )
                         connection.connect()
                 }
             } finally {
@@ -66,153 +90,122 @@ fun ChatRoomScreen(graph: AppGraph, roomId: Long, myId: String, back: () -> Unit
         }
     }
     DisposableEffect(connection) { onDispose { connection.disconnect() } }
-    LaunchedEffect(state.messages.lastOrNull()?.id) {
-        state.messages.lastOrNull()?.let(graph.chatPreviews::record)
-        if (state.messages.isNotEmpty()) list.animateScrollToItem(state.messages.lastIndex)
-        if (
-            pendingText != null &&
-                state.messages.any {
-                    it.id > sentAfter && it.senderId == myId && it.content == pendingText
-                }
-        ) {
-            pendingText = null
-        }
-    }
-    LaunchedEffect(pendingText) {
-        if (pendingText != null) {
-            delay(15_000)
-            draft = pendingText.orEmpty()
-            pendingText = null
-            sendError = "Подтверждение не пришло. Текст возвращён в поле — проверь историю перед повторной отправкой."
+    LaunchedEffect(state.messages) { graph.chatPreviews.recordHistory(state.messages) }
+    LaunchedEffect(messages.lastOrNull()?.id, highlighted) {
+        val index = messages.indexOfFirst { it.id == highlighted }
+        if (index >= 0 && (showSearch || !jumped)) {
+            list.scrollToItem(index)
+            jumped = true
+        } else if (!focused && !showSearch && messages.isNotEmpty()) {
+            val nearBottom =
+                (list.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: messages.lastIndex) >= messages.lastIndex - 3
+            if (nearBottom || messages.last().senderId == myId) list.animateScrollToItem(messages.lastIndex)
         }
     }
     Column(Modifier.fillMaxSize().imePadding()) {
         Row(
-            Modifier.fillMaxWidth().padding(12.dp),
+            Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(onClick = back) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Назад") }
-            PersonAvatar(partnerName ?: "Bloom", size = 40.dp)
-            Column(Modifier.padding(start = 12.dp).weight(1f)) {
-                Text(partnerName ?: "Ваш разговор", style = MaterialTheme.typography.titleMedium)
+            PersonAvatar(partner, size = 40.dp)
+            Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                Text(partner, style = MaterialTheme.typography.titleMedium, maxLines = 1)
                 Text(
-                    if (state.connected) "Можно говорить обо всём"
-                    else if (state.connecting) "Подключаемся…" else "Нет соединения",
+                    if (state.connected) "Чат" else if (state.connecting) "Подключаемся…" else "Нет соединения",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            IconButton(
+                onClick = {
+                    showSearch = !showSearch
+                    query = ""
+                }
+            ) {
+                Icon(if (showSearch) Icons.Outlined.Close else Icons.Outlined.Search, "Поиск в чате")
+            }
         }
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        if (showSearch) {
+            OutlinedTextField(
+                query,
+                { query = it.take(200) },
+                Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                placeholder = { Text("В загруженных сообщениях") },
+                singleLine = true,
+            )
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    if (hits.isEmpty()) "Нет совпадений" else "${matchIndex + 1} из ${hits.size}",
+                    Modifier.weight(1f).padding(start = 16.dp),
+                    style = MaterialTheme.typography.labelMedium,
+                )
+                IconButton(onClick = { matchIndex-- }, enabled = matchIndex > 0) {
+                    Icon(Icons.Outlined.KeyboardArrowUp, "Предыдущее совпадение")
+                }
+                IconButton(onClick = { matchIndex++ }, enabled = matchIndex < hits.lastIndex) {
+                    Icon(Icons.Outlined.KeyboardArrowDown, "Следующее совпадение")
+                }
+            }
+        }
         if (state.error != null) {
             ErrorMessage(state.error)
-            TextButton(
-                onClick = { scope.launch { connection.connect() } },
-                enabled = !state.connecting,
-            ) {
+            TextButton(onClick = { scope.launch { connection.connect() } }, enabled = !state.connecting) {
                 Text("Подключиться")
             }
         }
-        if (state.messages.isEmpty())
-            Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+        if (focused) {
+            if (contextNotice != null)
+                Text(contextNotice!!, Modifier.padding(12.dp), style = MaterialTheme.typography.bodySmall)
+            TextButton(
+                onClick = {
+                    focused = false
+                    scope.launch { if (state.messages.isNotEmpty()) list.scrollToItem(state.messages.lastIndex) }
+                }
+            ) {
+                Text("К новым сообщениям")
+            }
+        }
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+            if (messages.isEmpty())
                 EmptyBloom(
                     "Начните с простого «привет»",
-                    "Иногда одного сообщения достаточно для хорошего знакомства.",
-                    icon = Icons.Outlined.WavingHand,
+                    "Можно написать сообщение или выбрать фото.",
+                    Modifier.align(Alignment.Center),
+                    Icons.Outlined.WavingHand,
                 )
-            }
-        else
-            LazyColumn(
-                Modifier.weight(1f),
-                state = list,
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                items(state.messages, key = { it.id }) { message ->
-                    val own = message.senderId == myId
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = if (own) Arrangement.End else Arrangement.Start,
-                    ) {
-                        Surface(
-                            Modifier.widthIn(max = 300.dp),
-                            shape =
-                                RoundedCornerShape(
-                                    20.dp,
-                                    20.dp,
-                                    if (own) 5.dp else 20.dp,
-                                    if (own) 20.dp else 5.dp,
-                                ),
-                            color =
-                                if (own) MaterialTheme.colorScheme.primaryContainer
-                                else MaterialTheme.colorScheme.surfaceVariant,
-                        ) {
-                            Column(
-                                Modifier.padding(horizontal = 16.dp, vertical = 11.dp),
-                                verticalArrangement = Arrangement.spacedBy(5.dp),
+            else
+                LazyColumn(
+                    Modifier.fillMaxSize(),
+                    state = list,
+                    contentPadding = PaddingValues(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    itemsIndexed(messages, key = { _, message -> message.id }) { index, message ->
+                        if (index == 0 || message.createdAt.take(10) != messages[index - 1].createdAt.take(10))
+                            Box(
+                                Modifier.fillMaxWidth().padding(vertical = 10.dp),
+                                contentAlignment = Alignment.Center,
                             ) {
-                                if (!message.content.isNullOrBlank()) Text(message.content)
-                                if (!message.attachments.isNullOrEmpty())
-                                    Text(
-                                        "Вложение · просмотр пока недоступен",
-                                        style = MaterialTheme.typography.bodySmall,
-                                    )
-                                val time = runCatching {
-                                    OffsetDateTime.parse(message.createdAt)
-                                        .atZoneSameInstant(java.time.ZoneId.systemDefault())
-                                        .format(DateTimeFormatter.ofPattern("HH:mm"))
-                                }
-                                    .getOrDefault("")
                                 Text(
-                                    time,
-                                    Modifier.align(Alignment.End),
+                                    message.createdAt.take(10),
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
-                        }
+                        MessageBubble(graph, message, message.senderId == myId, message.id == highlighted)
                     }
                 }
-            }
-        ErrorMessage(sendError)
-        if (pendingText != null)
-            Text(
-                "Отправляем сообщение…",
-                Modifier.padding(horizontal = 20.dp),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        Row(
-            Modifier.fillMaxWidth().padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            OutlinedTextField(
-                draft,
-                {
-                    draft = it.take(4000)
-                    sendError = null
-                },
-                Modifier.weight(1f),
-                enabled = pendingText == null,
-                placeholder = { Text("Написать сообщение…") },
-                maxLines = 4,
-                shape = RoundedCornerShape(24.dp),
-            )
-            FilledIconButton(
-                enabled = state.connected && draft.isNotBlank() && pendingText == null,
-                onClick = {
-                    sentAfter = state.messages.lastOrNull()?.id ?: 0
-                    pendingText = draft.trim()
-                    if (connection.send(draft)) draft = ""
-                    else {
-                        pendingText = null
-                        sendError = "Не удалось отправить. Текст сохранён в поле ввода."
-                    }
-                },
-            ) {
-                Icon(Icons.AutoMirrored.Outlined.Send, "Отправить сообщение")
-            }
+            if (list.canScrollForward && !showSearch)
+                SmallFloatingActionButton(
+                    onClick = { scope.launch { list.animateScrollToItem(messages.lastIndex.coerceAtLeast(0)) } },
+                    modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp),
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                ) {
+                    Icon(Icons.Outlined.KeyboardArrowDown, "Последние сообщения")
+                }
         }
+        ChatComposer(graph, roomId, myId, connection, state)
     }
 }

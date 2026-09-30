@@ -7,4 +7,5 @@ data class ChatMessage(
     val content: String,
     @com.google.gson.annotations.SerializedName("created_at") val createdAt: String,
     val attachments: List<Attachment>? = null,
+    @com.google.gson.annotations.SerializedName("client_message_id") val clientMessageId: String? = null,
 )

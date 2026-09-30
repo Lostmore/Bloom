@@ -9,6 +9,15 @@ import kotlinx.coroutines.flow.update
 class ChatPreviews {
     private val mutable = MutableStateFlow<Map<Long, ChatMessage>>(emptyMap())
     val messages = mutable.asStateFlow()
+    private val historyState = MutableStateFlow<List<ChatMessage>>(emptyList())
+    val history = historyState.asStateFlow()
+
+    fun recordHistory(messages: List<ChatMessage>) {
+        historyState.update { current ->
+            (current + messages).associateBy { it.id }.values.sortedBy { it.id }.takeLast(3000)
+        }
+        messages.lastOrNull()?.let(::record)
+    }
 
     fun record(message: ChatMessage) {
         mutable.update { current ->
@@ -18,5 +27,6 @@ class ChatPreviews {
 
     fun clear() {
         mutable.value = emptyMap()
+        historyState.value = emptyList()
     }
 }

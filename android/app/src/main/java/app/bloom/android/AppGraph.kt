@@ -47,5 +47,6 @@ class AppGraph(context: Context) {
     val users: UsersApi = retrofit.create(UsersApi::class.java)
     val interactions: InteractionsApi = retrofit.create(InteractionsApi::class.java)
     val chat: ChatApi = retrofit.create(ChatApi::class.java)
+    val media: MediaApi = retrofit.create(MediaApi::class.java)
     val discovery: DiscoveryApi = retrofit.create(DiscoveryApi::class.java)
 }

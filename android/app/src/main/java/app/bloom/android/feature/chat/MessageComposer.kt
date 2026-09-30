@@ -1,0 +1,134 @@
+package app.bloom.android.feature.chat
+
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.Send
+import androidx.compose.material.icons.outlined.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.unit.dp
+
+fun insertEmoji(value: TextFieldValue, emoji: String): TextFieldValue {
+    val start = value.selection.min
+    val end = value.selection.max
+    val text = value.text.replaceRange(start, end, emoji)
+    return if (text.length <= 4000) TextFieldValue(text, TextRange(start + emoji.length)) else value
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun MessageComposer(
+    value: TextFieldValue,
+    change: (TextFieldValue) -> Unit,
+    enabled: Boolean,
+    canSend: Boolean,
+    send: () -> Unit,
+    attach: () -> Unit,
+) {
+    var emojiPanel by rememberSaveable { mutableStateOf(false) }
+    val keyboard = LocalSoftwareKeyboardController.current
+    val focus = remember { FocusRequester() }
+    BackHandler(enabled = emojiPanel) { emojiPanel = false }
+    Column {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.Bottom,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            OutlinedTextField(
+                value,
+                { if (it.text.length <= 4000) change(it) },
+                Modifier.weight(1f).focusRequester(focus).testTag("message-input"),
+                enabled = enabled,
+                placeholder = { Text("Сообщение") },
+                maxLines = 5,
+                shape = RoundedCornerShape(26.dp),
+                leadingIcon = {
+                    IconButton(
+                        onClick = {
+                            emojiPanel = !emojiPanel
+                            if (emojiPanel) keyboard?.hide()
+                            else {
+                                focus.requestFocus()
+                                keyboard?.show()
+                            }
+                        },
+                        enabled = enabled,
+                    ) {
+                        Icon(if (emojiPanel) Icons.Outlined.Keyboard else Icons.Outlined.EmojiEmotions, "Эмодзи")
+                    }
+                },
+                trailingIcon = {
+                    IconButton(onClick = attach, enabled = enabled) {
+                        Icon(Icons.Outlined.AttachFile, "Прикрепить фото")
+                    }
+                },
+                colors =
+                    OutlinedTextFieldDefaults.colors(
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                        focusedBorderColor = MaterialTheme.colorScheme.outline,
+                    ),
+            )
+            FilledIconButton(
+                onClick = send,
+                enabled = enabled && canSend,
+                modifier = Modifier.padding(bottom = 4.dp).size(48.dp),
+            ) {
+                Icon(Icons.AutoMirrored.Outlined.Send, "Отправить сообщение")
+            }
+        }
+        if (emojiPanel) {
+            Surface(color = MaterialTheme.colorScheme.surface) {
+                FlowRow(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    listOf(
+                            "😊",
+                            "😂",
+                            "🥰",
+                            "😍",
+                            "😘",
+                            "😉",
+                            "😎",
+                            "🥹",
+                            "🤗",
+                            "🤔",
+                            "😅",
+                            "🥲",
+                            "❤️",
+                            "💕",
+                            "🔥",
+                            "✨",
+                            "🌸",
+                            "👍",
+                            "🙌",
+                            "👋",
+                            "🎉",
+                            "☕",
+                            "🌅",
+                            "🫶",
+                        )
+                        .forEach { emoji ->
+                            TextButton(
+                                onClick = { change(insertEmoji(value, emoji)) },
+                                enabled = enabled,
+                                modifier = Modifier.size(48.dp),
+                                contentPadding = PaddingValues(0.dp),
+                            ) {
+                                Text(emoji, style = MaterialTheme.typography.headlineSmall)
+                            }
+                        }
+                }
+            }
+        }
+    }
+}
