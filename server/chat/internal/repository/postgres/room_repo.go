@@ -30,7 +30,21 @@ func (r *RoomRepo) CreateRoom(ctx context.Context, user1ID, user2ID uuid.UUID) (
 
 // GetByUser извлекает все чат-комнаты, в которых участвует указанный пользователь.
 func (r *RoomRepo) GetByUser(ctx context.Context, userID uuid.UUID) ([]domain.Room, error) {
-	rows, err := r.pool.Query(ctx, "SELECT * FROM rooms WHERE user1_id=$1 OR user2_id=$1", userID)
+	query := `
+		SELECT 
+			r.id, r.user1_id, r.user2_id, r.is_active, r.created_at,
+			m.content, m.created_at
+		FROM rooms r
+		LEFT JOIN (
+			SELECT room_id, MAX(created_at) AS max_time 
+			FROM messages 
+			GROUP BY room_id
+		) fm ON r.id = fm.room_id
+		LEFT JOIN messages m ON m.room_id = r.id AND m.created_at = fm.max_time
+		WHERE r.user1_id = $1 OR r.user2_id = $1
+		ORDER BY COALESCE(m.created_at, r.created_at) DESC
+	`
+	rows, err := r.pool.Query(ctx, query, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -38,7 +52,7 @@ func (r *RoomRepo) GetByUser(ctx context.Context, userID uuid.UUID) ([]domain.Ro
 	var rooms []domain.Room
 	for rows.Next() {
 		var room domain.Room
-		if err := rows.Scan(&room.ID, &room.User1ID, &room.User2ID, &room.IsActive, &room.CreatedAt); err != nil {
+		if err := rows.Scan(&room.ID, &room.User1ID, &room.User2ID, &room.IsActive, &room.CreatedAt, &room.LastMessage, &room.LastMessageAt); err != nil {
 			return nil, err
 		}
 		rooms = append(rooms, room)

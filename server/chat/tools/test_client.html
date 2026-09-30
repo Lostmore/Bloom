@@ -1,22 +1,85 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <title>Bloom Multi-Chat Test (Real Auth)</title>
     <style>
-        body { font-family: sans-serif; display: flex; gap: 20px; padding: 20px; }
-        .sidebar { width: 300px; border-right: 1px solid #ccc; padding-right: 20px; }
-        .main { flex-grow: 1; }
-        .chat-list { list-style: none; padding: 0; }
-        .chat-item { padding: 10px; border: 1px solid #ddd; margin-bottom: 5px; cursor: pointer; border-radius: 5px; }
-        .chat-item:hover { background: #f0f0f0; }
-        #chat { height: 400px; border: 1px solid #ccc; border-radius: 5px; overflow-y: scroll; padding: 10px; margin-bottom: 10px; background: #f9f9f9; }
-        .message { margin-bottom: 5px; padding: 5px; background: #e1f5fe; border-radius: 4px; width: fit-content; }
-        .system { color: gray; font-size: 0.9em; font-style: italic; }
-        .controls { margin-bottom: 15px; }
-        .auth-section { border: 1px solid #007bff; padding: 10px; border-radius: 5px; margin-bottom: 15px; background: #f0f8ff; }
-        .hidden { display: none; }
+        body {
+            font-family: sans-serif;
+            display: flex;
+            gap: 20px;
+            padding: 20px;
+        }
+
+        .sidebar {
+            width: 300px;
+            border-right: 1px solid #ccc;
+            padding-right: 20px;
+        }
+
+        .main {
+            flex-grow: 1;
+        }
+
+        .chat-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .chat-item {
+            padding: 10px;
+            border: 1px solid #ddd;
+            margin-bottom: 5px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+
+        .chat-item:hover {
+            background: #f0f0f0;
+        }
+
+        #chat {
+            height: 400px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            overflow-y: scroll;
+            padding: 10px;
+            margin-bottom: 10px;
+            background: #f9f9f9;
+        }
+
+        .message {
+            margin-bottom: 5px;
+            padding: 5px;
+            background: #e1f5fe;
+            border-radius: 4px;
+            width: fit-content;
+        }
+
+        .system {
+            color: gray;
+            font-size: 0.9em;
+            font-style: italic;
+        }
+
+        .controls {
+            margin-bottom: 15px;
+        }
+
+        .auth-section {
+            border: 1px solid #007bff;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            background: #f0f8ff;
+        }
+
+        .hidden {
+            display: none;
+        }
     </style>
 </head>
+
 <body>
     <div class="sidebar">
         <!-- БЛОК АВТОРИЗАЦИИ -->
@@ -38,7 +101,7 @@
             <h4 style="margin: 0 0 5px 0;">✅ Вы вошли</h4>
             <div style="font-size: 0.8em; word-wrap: break-word; color: #333;">ID: <span id="myUserId"></span></div>
         </div>
-        
+
         <!-- СОЗДАНИЕ КОМНАТЫ -->
         <div class="controls hidden" id="createRoomSection" style="border: 1px solid #eee; padding: 10px;">
             <h4>Создать новый чат</h4>
@@ -47,17 +110,19 @@
             <button onclick="createRoom()" style="margin-top: 5px; width: 100%; cursor: pointer;">Создать чат</button>
         </div>
 
-        <button onclick="loadRooms()" id="loadRoomsBtn" class="hidden" style="width: 100%; padding: 10px; background: #dcedc8; border: none; cursor:pointer;">📥 Загрузить мои чаты</button>
-        
+        <button onclick="loadRooms()" id="loadRoomsBtn" class="hidden"
+            style="width: 100%; padding: 10px; background: #dcedc8; border: none; cursor:pointer;">📥 Загрузить мои
+            чаты</button>
+
         <ul id="roomsList" class="chat-list"></ul>
     </div>
 
     <div class="main">
         <h2 id="chatTitle">Сначала войдите в систему</h2>
         <div id="chat"></div>
-        
+
         <div id="attachmentsPreview" style="margin-bottom: 5px; font-size: 0.9em; color: #555;"></div>
-        
+
         <div style="display: flex; gap: 5px;">
             <input type="text" id="msg" placeholder="Напишите сообщение..." disabled style="flex-grow: 1;">
             <input type="file" id="mediaFile" multiple style="display:none;" onchange="uploadMedia()">
@@ -70,11 +135,11 @@
         const host = window.location.host;
         const protocol = window.location.protocol;
         const wsProtocol = protocol === "https:" ? "wss:" : "ws:";
-        
+
         const authApiUrl = `${protocol}//${host}/api/v1/auth`;
         const roomsApiUrl = `${protocol}//${host}/api/v1/conversations`; // Через Gateway API это будет проксировано на Чат
         const mediaApiUrl = `${protocol}//${host}/api/v1/media/upload`;
-        
+
         let ws;
         let currentRoomId = null;
         let accessToken = null;
@@ -97,7 +162,7 @@
                 } else {
                     document.getElementById("authStatus").innerText = "Ошибка регистрации: " + await res.text();
                 }
-            } catch(e) { document.getElementById("authStatus").innerText = e; }
+            } catch (e) { document.getElementById("authStatus").innerText = e; }
         }
 
         async function login() {
@@ -115,12 +180,12 @@
                 } else {
                     document.getElementById("authStatus").innerText = "Ошибка входа: " + await res.text();
                 }
-            } catch(e) { document.getElementById("authStatus").innerText = e; }
+            } catch (e) { document.getElementById("authStatus").innerText = e; }
         }
 
         async function onAuthSuccess(data) {
             accessToken = data.accessToken;
-            
+
             // Запрашиваем свой профиль чтобы узнать свой accountId
             const meRes = await fetch(`${authApiUrl}/me`, {
                 headers: { 'Authorization': 'Bearer ' + accessToken }
@@ -129,14 +194,47 @@
                 const meData = await meRes.json();
                 currentUserId = meData.accountId;
                 document.getElementById("myUserId").innerText = currentUserId;
-                
+
                 // Переключаем интерфейс
                 document.getElementById("authSection").classList.add("hidden");
                 document.getElementById("userInfoSection").classList.remove("hidden");
                 document.getElementById("createRoomSection").classList.remove("hidden");
                 document.getElementById("loadRoomsBtn").classList.remove("hidden");
                 document.getElementById("chatTitle").innerText = "Выберите чат";
-                
+
+                // --- ГЛОБАЛЬНЫЙ ВЕБСОКЕТ ---
+                const wsUrl = `${wsProtocol}//${host}/api/v1/ws?token=${accessToken}`;
+                ws = new WebSocket(wsUrl);
+
+                ws.onopen = () => console.log("Глобальный WS подключен");
+
+                ws.onmessage = (evt) => {
+                    const data = JSON.parse(evt.data);
+
+                    // Обновляем список комнат при любом новом сообщении
+                    loadRooms();
+
+                    // Рисуем сообщение только если мы сейчас сидим в этой комнате
+                    if (data.room_id === currentRoomId) {
+                        const sender = data.sender_id == currentUserId ? "Вы" : "Собеседник";
+                        let urls = [];
+                        if (data.attachments && data.attachments.length > 0) {
+                            urls = data.attachments.map(att => att.url);
+                        }
+                        printMsg(sender, data.content, "", urls);
+                    } else {
+                        console.log("Новое сообщение в другой комнате:", data.room_id);
+                        // Тут можно было бы обновить UI ленты чатов (показать уведомление)
+                    }
+                };
+
+                ws.onclose = () => {
+                    console.log("WS Отключен");
+                    document.getElementById("msg").disabled = true;
+                    document.getElementById("sendBtn").disabled = true;
+                    document.getElementById("uploadBtn").disabled = true;
+                };
+
                 loadRooms();
             }
         }
@@ -186,7 +284,13 @@
                         const li = document.createElement("li");
                         li.className = "chat-item";
                         const otherUserId = room.user1_id == currentUserId ? room.user2_id : room.user1_id;
-                        li.innerText = `Чат с User (ID: ${otherUserId.substring(0,8)}...)`;
+
+                        let text = `Чат с User (ID: ${otherUserId.substring(0, 8)}...)`;
+                        if (room.last_message) {
+                            text += `\n💬 ${room.last_message}`;
+                        }
+                        li.innerText = text;
+
                         li.onclick = () => connectToRoom(room.id, otherUserId);
                         list.appendChild(li);
                     });
@@ -200,59 +304,53 @@
 
         // ----- WEBSOCKET -----
         async function connectToRoom(roomId, otherUserId) {
-            if (ws) { ws.close(); } 
-            
-            document.getElementById("chatTitle").innerText = `Чат с User (ID: ${otherUserId.substring(0,8)}...)`;
+            currentRoomId = roomId;
+            document.getElementById("chatTitle").innerText = `Чат с User (ID: ${otherUserId.substring(0, 8)}...)`;
             document.getElementById("chat").replaceChildren();
-            
+
+            // Загрузка истории сообщений (теперь через REST)
             try {
-                // Подключаемся к вебсокету, передавая реальный токен!
-                const wsUrl = `${wsProtocol}//${host}/api/v1/ws?token=${accessToken}&room_id=${roomId}`;
-                ws = new WebSocket(wsUrl);
-                
-                ws.onopen = () => {
-                    printMsg("Система", "Подключено к комнате", "system");
-                    document.getElementById("msg").disabled = false;
-                    document.getElementById("sendBtn").disabled = false;
-                    document.getElementById("uploadBtn").disabled = false;
-                    currentRoomId = roomId;
-                };
-                
-                ws.onmessage = (evt) => {
-                    const data = JSON.parse(evt.data);
-                    
-                    const sender = data.sender_id == currentUserId ? "Вы" : "Собеседник";
-                    
-                    // Собираем ссылки из attachments, если они есть
-                    let urls = [];
-                    if (data.attachments && data.attachments.length > 0) {
-                        urls = data.attachments.map(att => att.url);
+                // Если ты используешь Gateway, убедись, что этот маршрут проксируется правильно
+                const historyUrl = `${protocol}//${host}/api/v1/conversations/${roomId}/messages`;
+                const res = await fetch(historyUrl, {
+                    headers: { 'Authorization': 'Bearer ' + accessToken }
+                });
+                if (res.ok) {
+                    const msgs = await res.json();
+                    if (msgs && msgs.length > 0) {
+                        msgs.forEach(data => {
+                            const sender = data.sender_id == currentUserId ? "Вы" : "Собеседник";
+                            let urls = [];
+                            if (data.attachments && data.attachments.length > 0) {
+                                urls = data.attachments.map(att => att.url);
+                            }
+                            printMsg(sender, data.content, "", urls);
+                        });
+                    } else {
+                        printMsg("Система", "Сообщений пока нет. Напишите первым!", "system");
                     }
-                    printMsg(sender, data.content, "", urls);
-                };
-                
-                ws.onclose = () => {
-                    printMsg("Система", "Отключено", "system");
-                    document.getElementById("msg").disabled = true;
-                    document.getElementById("sendBtn").disabled = true;
-                    document.getElementById("uploadBtn").disabled = true;
-                };
-                
+                } else {
+                    console.error("Ошибка HTTP:", res.status);
+                }
             } catch (e) {
-                alert("Ошибка подключения к сокету: " + e);
+                console.error("Ошибка загрузки истории", e);
             }
+
+            document.getElementById("msg").disabled = false;
+            document.getElementById("sendBtn").disabled = false;
+            document.getElementById("uploadBtn").disabled = false;
         }
 
         // ----- МЕДИА -----
         async function uploadMedia() {
             const files = document.getElementById("mediaFile").files;
             if (files.length === 0) return;
-            
+
             for (let i = 0; i < files.length; i++) {
                 const formData = new FormData();
                 formData.append("file", files[i]);
-                
-                document.getElementById("attachmentsPreview").innerText = `Загрузка файла ${i+1} из ${files.length}...`;
+
+                document.getElementById("attachmentsPreview").innerText = `Загрузка файла ${i + 1} из ${files.length}...`;
 
                 try {
                     const res = await fetch(mediaApiUrl, {
@@ -262,7 +360,7 @@
                         },
                         body: formData
                     });
-                    
+
                     if (res.ok) {
                         const data = await res.json();
                         uploadedFiles.push(data.url);
@@ -300,15 +398,16 @@
         function sendMessage() {
             const input = document.getElementById("msg");
             if (input.value.trim() === "" && uploadedFiles.length === 0) return;
-            
+
             const msgObj = {
+                room_id: currentRoomId,
                 content: input.value,
-                attachments: uploadedFiles.map(url => ({ url: url })) 
+                attachments: uploadedFiles.map(url => ({ url: url }))
             };
-            
+
             ws.send(JSON.stringify(msgObj));
             input.value = "";
-            clearAttachments(); 
+            clearAttachments();
         }
 
         function safeMediaUrl(value) {
@@ -369,7 +468,7 @@
             author.textContent = `${sender}: `;
             div.appendChild(author);
             div.appendChild(document.createTextNode(typeof text === "string" ? text : ""));
-            
+
             if (Array.isArray(attachments) && attachments.length > 0) {
                 const list = document.createElement("ul");
                 attachments.forEach(value => {
@@ -392,4 +491,5 @@
         }
     </script>
 </body>
+
 </html>

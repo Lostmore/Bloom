@@ -77,7 +77,7 @@ func main() {
 	hub := websocket.NewHub(svc)
 	go hub.Run()
 
-	roomHandler := httpDelivery.NewRoomHandler(svc)
+	roomHandler := httpDelivery.NewRoomHandler(svc, hub)
 
 	roomsLogic := func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPost {
@@ -88,8 +88,8 @@ func main() {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
 	}
-	http.HandleFunc("/api/rooms", httpDelivery.AuthMiddleware(validator, roomsLogic))
-
+	http.HandleFunc("/api/conversations", httpDelivery.AuthMiddleware(validator, roomsLogic))
+	http.HandleFunc("GET /conversations/{id}/messages", httpDelivery.AuthMiddleware(validator, roomHandler.GetRoomHistory))
 	http.HandleFunc("GET /openapi.json", docs.Handler)
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		websocket.ServeWS(hub, validator, w, r)

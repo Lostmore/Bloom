@@ -1,5 +1,6 @@
 <!doctype html>
 <html lang="ru" data-theme="dark">
+
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -15,40 +16,107 @@
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="theme.css">
 </head>
+
 <body>
   <aside class="sidebar">
-    <a class="brand" href="#" aria-label="Bloom, вся архитектура"><img class="brand-mark" src="assets/brand/bloom-mark.svg" alt=""><span>Bloom<span class="brand-caption">ARCHITECTURE EXPLORER</span></span></a>
-    <div class="workspace"><span class="workspace-icon">B</span><span>Bloom workspace<small>Java + Go · Monorepo</small></span><span class="workspace-dot"></span></div>
+    <a class="brand" href="#" aria-label="Bloom, вся архитектура"><img class="brand-mark"
+        src="assets/brand/bloom-mark.svg" alt=""><span>Bloom<span class="brand-caption">ARCHITECTURE
+          EXPLORER</span></span></a>
+    <div class="workspace"><span class="workspace-icon">B</span><span>Bloom workspace<small>Java + Go ·
+          Monorepo</small></span><span class="workspace-dot"></span></div>
     <div class="nav-label">ИССЛЕДОВАТЬ</div>
     <button class="nav active" id="overview"><span>◈</span> Обзор архитектуры <kbd>1</kbd></button>
     <button class="nav" id="scenarios-nav"><span>▷</span> Сценарии запросов <kbd>2</kbd></button>
     <div class="nav-label service-label">СЕРВИСЫ <span id="service-count"></span></div>
     <div id="service-list"></div>
-    <div class="sidebar-bottom"><span class="small-flower">✦</span><strong>See you..</strong><p>Исследуйте связи.<br>Следуйте за запросом.</p><div class="repo-mark">⑂ <span id="commit">local</span><span>снимок исходников</span></div></div>
+    <div class="sidebar-bottom"><span class="small-flower">✦</span><strong>See you..</strong>
+      <p>Исследуйте связи.<br>Следуйте за запросом.</p>
+      <div class="repo-mark">⑂ <span id="commit">local</span><span>снимок исходников</span></div>
+    </div>
   </aside>
   <main>
-    <header class="topbar"><div class="breadcrumb">Workspace <span>/</span> Bloom <span>/</span> <strong>Архитектура</strong></div><div class="top-actions"><button id="theme" class="theme-toggle" aria-label="Toggle dark theme" aria-pressed="true">?</button><button id="motion" class="quiet" aria-pressed="true">◌ Анимация</button><button id="help" class="help" aria-label="Как работает карта">?</button><span class="avatar">B</span></div></header>
-    <section class="page-heading"><div><div class="eyebrow">YOUR SYSTEM, CONNECTED</div><h1>Вся картина. <span>В одной карте.</span></h1><p>Как устроен Bloom — от первого запроса до события в Kafka.</p></div><div class="snapshot"><span class="snapshot-dot"></span><div>Снимок кода<small id="updated">Загрузка…</small></div></div></section>
+    <header class="topbar">
+      <div class="breadcrumb">Workspace <span>/</span> Bloom <span>/</span> <strong>Архитектура</strong></div>
+      <div class="top-actions"><button id="theme" class="theme-toggle" aria-label="Toggle dark theme"
+          aria-pressed="true">?</button><button id="motion" class="quiet" aria-pressed="true">◌ Анимация</button><button
+          id="help" class="help" aria-label="Как работает карта">?</button><span class="avatar">B</span></div>
+    </header>
+    <section class="page-heading">
+      <div>
+        <div class="eyebrow">YOUR SYSTEM, CONNECTED</div>
+        <h1>Вся картина. <span>В одной карте.</span></h1>
+        <p>Как устроен Bloom — от первого запроса до события в Kafka.</p>
+      </div>
+      <div class="snapshot"><span class="snapshot-dot"></span>
+        <div>Снимок кода<small id="updated">Загрузка…</small></div>
+      </div>
+    </section>
     <section class="metrics" id="metrics" aria-label="Сводка проекта"></section>
     <div class="explorer">
       <section class="canvas-card">
-        <div class="canvas-toolbar"><div class="segmented" role="group" aria-label="Тип связей"><button class="selected" data-filter="all">Все связи</button><button data-filter="http">HTTP</button><button data-filter="event">События</button><button data-filter="sql">Данные</button></div><label class="search"><span>⌕</span><input id="search" placeholder="Найти сервис или API…" aria-label="Поиск сервиса или API"><kbd>/</kbd></label></div>
-        <div id="viewport" tabindex="0" aria-label="Карта архитектуры. Выберите сервис. Перемещение — перетаскивание фона; масштаб — кнопки внизу.">
-          <div class="map-label"><span></span> BLOOM SYSTEM MAP <small>Выберите сервис, чтобы заглянуть внутрь</small></div>
-          <div id="world"><svg id="connections" aria-label="Связи между сервисами"></svg><div id="nodes"></div></div>
-          <div class="map-controls"><button id="zoom-out" aria-label="Уменьшить масштаб">−</button><span id="zoom-value">100%</span><button id="zoom-in" aria-label="Увеличить масштаб">+</button><button id="fit" aria-label="Показать всю карту" title="Вся карта">⛶</button></div>
-          <div class="legend"><span><i class="http"></i> HTTP / WS</span><span><i class="event"></i> Kafka</span><span><i class="sql"></i> Хранение</span><span><i class="gap"></i> Не завершено</span></div>
+        <div class="canvas-toolbar">
+          <div class="segmented" role="group" aria-label="Тип связей"><button class="selected" data-filter="all">Все
+              связи</button><button data-filter="http">HTTP</button><button data-filter="event">События</button><button
+              data-filter="sql">Данные</button></div><label class="search"><span>⌕</span><input id="search"
+              placeholder="Найти сервис или API…" aria-label="Поиск сервиса или API"><kbd>/</kbd></label>
+        </div>
+        <div id="viewport" tabindex="0"
+          aria-label="Карта архитектуры. Выберите сервис. Перемещение — перетаскивание фона; масштаб — кнопки внизу.">
+          <div class="map-label"><span></span> BLOOM SYSTEM MAP <small>Выберите сервис, чтобы заглянуть внутрь</small>
+          </div>
+          <div id="world"><svg id="connections" aria-label="Связи между сервисами"></svg>
+            <div id="nodes"></div>
+          </div>
+          <div class="map-controls"><button id="zoom-out" aria-label="Уменьшить масштаб">−</button><span
+              id="zoom-value">100%</span><button id="zoom-in" aria-label="Увеличить масштаб">+</button><button id="fit"
+              aria-label="Показать всю карту" title="Вся карта">⛶</button></div>
+          <div class="legend"><span><i class="http"></i> HTTP / WS</span><span><i class="event"></i>
+              Kafka</span><span><i class="sql"></i> Хранение</span><span><i class="gap"></i> Не завершено</span></div>
           <div id="no-results" hidden>Ничего не найдено. Попробуйте название сервиса или путь API.</div>
         </div>
-        <div class="map-caption"><span>◉ Структура кода, не статус серверов</span><button id="reset">Сбросить выделение ↗</button></div>
+        <div class="map-caption"><span>◉ Структура кода, не статус серверов</span><button id="reset">Сбросить выделение
+            ↗</button></div>
       </section>
-      <aside class="inspector" aria-label="Детали выбранного компонента"><div class="inspector-top"><span>ПОДРОБНОСТИ</span><button id="close-detail" aria-label="Сбросить выбор">×</button></div><div id="detail"></div></aside>
+      <aside class="inspector" aria-label="Детали выбранного компонента">
+        <div class="inspector-top"><span>ПОДРОБНОСТИ</span><button id="close-detail"
+            aria-label="Сбросить выбор">×</button></div>
+        <div id="detail"></div>
+      </aside>
     </div>
-    <section class="player"><div class="player-choice"><span class="play-label">ПРОСЛЕДИТЬ ЗАПРОС</span><label for="scenario" class="sr-only">Сценарий</label><select id="scenario"></select><span id="scenario-subtitle"></span></div><div class="player-main"><div class="step-heading"><span id="step-counter">01 / 05</span><strong id="step-title"></strong><span class="simulation">Симуляция по коду</span></div><p id="step-description" aria-live="polite"></p><div id="progress" class="progress"></div></div><div class="play-controls"><button id="previous" aria-label="Предыдущий шаг">↤</button><button id="play" class="play" aria-label="Воспроизвести сценарий">▶</button><button id="next" aria-label="Следующий шаг">↦</button><button id="stop" class="quiet" aria-label="Остановить сценарий">Сброс</button></div></section>
-    <footer><span>✦ Bloom · People make life brighter</span><a href="brand.html">Знак и иконка ↗</a><button id="about">Откуда взяты данные?</button></footer>
+    <section class="player">
+      <div class="player-choice"><span class="play-label">ПРОСЛЕДИТЬ ЗАПРОС</span><label for="scenario"
+          class="sr-only">Сценарий</label><select id="scenario"></select><span id="scenario-subtitle"></span></div>
+      <div class="player-main">
+        <div class="step-heading"><span id="step-counter">01 / 05</span><strong id="step-title"></strong><span
+            class="simulation">Симуляция по коду</span></div>
+        <p id="step-description" aria-live="polite"></p>
+        <div id="progress" class="progress"></div>
+      </div>
+      <div class="play-controls"><button id="previous" aria-label="Предыдущий шаг">↤</button><button id="play"
+          class="play" aria-label="Воспроизвести сценарий">▶</button><button id="next"
+          aria-label="Следующий шаг">↦</button><button id="stop" class="quiet"
+          aria-label="Остановить сценарий">Сброс</button></div>
+    </section>
+    <footer><span>✦ Bloom · People make life brighter</span><a href="brand.html">Знак и иконка ↗</a><button
+        id="about">Откуда взяты данные?</button></footer>
   </main>
-  <dialog id="help-dialog"><button id="close-help" class="dialog-close" aria-label="Закрыть">×</button><div class="eyebrow">КАК ЧИТАТЬ КАРТУ</div><h2>Архитектура, которой можно доверять.</h2><p>Карта собрана из Compose, маршрутов Gateway, Spring-контроллеров и OpenAPI Go-сервисов. Она не проверяет, запущены ли контейнеры.</p><p><strong>Автоматически:</strong> сервисы, порты, маршруты, API и список исходных файлов. <strong>Вручную сверены:</strong> связи между сервисами, особенности авторизации и сценарии. После изменения логики они могут потребовать пересмотра.</p><p>Нажмите на карточку или линию. В разделе «Исходники» видны файлы, на которых основано описание. Янтарный цвет означает незавершённую интеграцию или заготовку.</p><p>Для обновления запустите <code>python infrastructure/architecture/serve.py</code>. Сервер следит за исходниками; открытая страница получает обновления автоматически. При открытии HTML двойным кликом показывается сохранённый снимок.</p><p>Клавиши: <kbd>/</kbd> поиск · <kbd>1</kbd> обзор · <kbd>2</kbd> сценарии · <kbd>Esc</kbd> сброс.</p></dialog>
+  <dialog id="help-dialog"><button id="close-help" class="dialog-close" aria-label="Закрыть">×</button>
+    <div class="eyebrow">КАК ЧИТАТЬ КАРТУ</div>
+    <h2>Архитектура, которой можно доверять.</h2>
+    <p>Карта собрана из Compose, маршрутов Gateway, Spring-контроллеров и OpenAPI Go-сервисов. Она не проверяет,
+      запущены ли контейнеры.</p>
+    <p><strong>Автоматически:</strong> сервисы, порты, маршруты, API и список исходных файлов. <strong>Вручную
+        сверены:</strong> связи между сервисами, особенности авторизации и сценарии. После изменения логики они могут
+      потребовать пересмотра.</p>
+    <p>Нажмите на карточку или линию. В разделе «Исходники» видны файлы, на которых основано описание. Янтарный цвет
+      означает незавершённую интеграцию или заготовку.</p>
+    <p>Для обновления запустите <code>python infrastructure/architecture/serve.py</code>. Сервер следит за исходниками;
+      открытая страница получает обновления автоматически. При открытии HTML двойным кликом показывается сохранённый
+      снимок.</p>
+    <p>Клавиши: <kbd>/</kbd> поиск · <kbd>1</kbd> обзор · <kbd>2</kbd> сценарии · <kbd>Esc</kbd> сброс.</p>
+  </dialog>
   <script src="data.js"></script>
   <script src="app.js"></script>
 </body>
+
 </html>

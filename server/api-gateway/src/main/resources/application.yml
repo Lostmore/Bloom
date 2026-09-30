@@ -10,12 +10,12 @@ spring:
       add-mappings: false
   cloud:
     gateway:
-      globalcors:                       # Удалить после реализации фронтенд
-        cors-configurations:            # Удалить после реализации фронтенд
-          '[/**]':                      # Удалить после реализации фронтенд
-            allowedOrigins: "*"         # Удалить после реализации фронтенд
-            allowedMethods: "*"         # Удалить после реализации фронтенд
-            allowedHeaders: "*"         # Удалить после реализации фронтенд
+      #      globalcors:                       # Удалить после реализации фронтенд
+      #        cors-configurations:            # Удалить после реализации фронтенд
+      #          '[/**]':                      # Удалить после реализации фронтенд
+      #            allowedOrigins: "*"         # Удалить после реализации фронтенд
+      #            allowedMethods: "*"         # Удалить после реализации фронтенд
+      #            allowedHeaders: "*"         # Удалить после реализации фронтенд
       server:
         webflux:
           httpclient:
@@ -58,7 +58,7 @@ spring:
                 - Path=/api/v1/conversations
                 - Method=GET,POST
               filters:
-                - SetPath=/api/rooms
+                - SetPath=/api/conversations
             - id: chat
               uri: ${CHAT_URL:http://localhost:8091}
               predicates:

@@ -3,7 +3,10 @@ package http
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 
+	"bloom.local/chat/internal/delivery/websocket"
+	"bloom.local/chat/internal/domain"
 	"bloom.local/chat/internal/service"
 	"github.com/google/uuid"
 )
@@ -16,11 +19,12 @@ type CreateRoomRequest struct {
 // RoomHandler обрабатывает HTTP-запросы (REST API), связанные с комнатами.
 type RoomHandler struct {
 	Service *service.MessageService
+	Hub     *websocket.Hub
 }
 
 // NewRoomHandler создает новый обработчик HTTP запросов для комнат.
-func NewRoomHandler(svc *service.MessageService) *RoomHandler {
-	return &RoomHandler{Service: svc}
+func NewRoomHandler(svc *service.MessageService, hub *websocket.Hub) *RoomHandler {
+	return &RoomHandler{Service: svc, Hub: hub}
 }
 
 // CreateRoom godoc
@@ -56,6 +60,13 @@ func (h *RoomHandler) CreateRoom(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to create room", http.StatusInternalServerError)
 		return
 	}
+	h.Hub.JoinRoom <- &websocket.JoinRoomRequest{UserID: userID, RoomID: room.ID}
+	h.Hub.JoinRoom <- &websocket.JoinRoomRequest{UserID: req.User2ID, RoomID: room.ID}
+	h.Hub.Broadcast <- &domain.Message{
+		RoomID:   room.ID,
+		SenderID: userID,
+		Content:  "Чат создан",
+	}
 	w.WriteHeader(http.StatusCreated)
 	if err := json.NewEncoder(w).Encode(room); err != nil {
 		http.Error(w, "Failed to encode room", http.StatusInternalServerError)
@@ -85,5 +96,38 @@ func (h *RoomHandler) GetUserRooms(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := json.NewEncoder(w).Encode(rooms); err != nil {
 		http.Error(w, "Failed to encode rooms", http.StatusInternalServerError)
+	}
+}
+
+// GetRoomHistory возвращает историю сообщений чата
+func (h *RoomHandler) GetRoomHistory(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value(UserIDKey).(uuid.UUID)
+	if !ok {
+		http.Error(w, "Authorization token invalid", http.StatusUnauthorized)
+		return
+	}
+
+	roomIDStr := r.PathValue("id")
+	if roomIDStr == "" {
+		http.Error(w, "room_id is required", http.StatusBadRequest)
+		return
+	}
+	roomID, err := strconv.ParseInt(roomIDStr, 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid room_id", http.StatusBadRequest)
+		return
+	}
+	msgs, err := h.Service.GetRoomHistory(r.Context(), roomID, userID)
+	if err != nil {
+		http.Error(w, "Failed to get room history", http.StatusInternalServerError)
+		return
+	}
+
+	if msgs == nil {
+		msgs = []*domain.Message{}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(msgs); err != nil {
+		http.Error(w, "Failed to encode messages", http.StatusInternalServerError)
 	}
 }

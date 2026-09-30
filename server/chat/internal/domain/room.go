@@ -9,11 +9,13 @@ import (
 
 // Room представляет собой сущность чат-комнаты между двумя пользователями.
 type Room struct {
-	ID        int64     `json:"id"`
-	User1ID   uuid.UUID `json:"user1_id" swaggertype:"string" format:"uuid"`
-	User2ID   uuid.UUID `json:"user2_id" swaggertype:"string" format:"uuid"`
-	IsActive  bool      `json:"is_active"`
-	CreatedAt time.Time `json:"created_at"`
+	ID            int64      `json:"id"`
+	User1ID       uuid.UUID  `json:"user1_id" swaggertype:"string" format:"uuid"`
+	User2ID       uuid.UUID  `json:"user2_id" swaggertype:"string" format:"uuid"`
+	IsActive      bool       `json:"is_active"`
+	CreatedAt     time.Time  `json:"created_at"`
+	LastMessage   *string    `json:"last_message,omitempty"`
+	LastMessageAt *time.Time `json:"last_message_at,omitempty"`
 }
 
 // RoomRepository описывает методы для работы с чат-комнатами в базе данных.
