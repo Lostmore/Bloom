@@ -41,13 +41,21 @@ fun MessageComposer(
     val focus = remember { FocusRequester() }
     BackHandler(enabled = emojiPanel) { emojiPanel = false }
     Column {
+        val selectedSticker = bloomSticker(value.text)
+        if (selectedSticker != null)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                BloomStickerArt(selectedSticker, Modifier.weight(1f))
+                IconButton(onClick = { change(TextFieldValue()) }, enabled = enabled) {
+                    Icon(Icons.Outlined.Close, "Убрать стикер")
+                }
+            }
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
             verticalAlignment = Alignment.Bottom,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             OutlinedTextField(
-                value,
+                if (selectedSticker == null) value else TextFieldValue(),
                 { if (it.text.length <= 4000) change(it) },
                 Modifier.weight(1f).focusRequester(focus).testTag("message-input"),
                 enabled = enabled,
@@ -90,44 +98,15 @@ fun MessageComposer(
         }
         if (emojiPanel) {
             Surface(color = MaterialTheme.colorScheme.surface) {
-                FlowRow(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    listOf(
-                            "😊",
-                            "😂",
-                            "🥰",
-                            "😍",
-                            "😘",
-                            "😉",
-                            "😎",
-                            "🥹",
-                            "🤗",
-                            "🤔",
-                            "😅",
-                            "🥲",
-                            "❤️",
-                            "💕",
-                            "🔥",
-                            "✨",
-                            "🌸",
-                            "👍",
-                            "🙌",
-                            "👋",
-                            "🎉",
-                            "☕",
-                            "🌅",
-                            "🫶",
-                        )
-                        .forEach { emoji ->
-                            TextButton(
-                                onClick = { change(insertEmoji(value, emoji)) },
-                                enabled = enabled,
-                                modifier = Modifier.size(48.dp),
-                                contentPadding = PaddingValues(0.dp),
-                            ) {
-                                Text(emoji, style = MaterialTheme.typography.headlineSmall)
-                            }
-                        }
-                }
+                ExpressionPicker(
+                    enabled,
+                    value.text.isBlank() || selectedSticker != null,
+                    emoji = { change(insertEmoji(if (selectedSticker == null) value else TextFieldValue(), it)) },
+                    sticker = {
+                        change(TextFieldValue(it.wire, TextRange(it.wire.length)))
+                        emojiPanel = false
+                    },
+                )
             }
         }
     }

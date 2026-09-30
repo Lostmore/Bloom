@@ -14,6 +14,8 @@ data class Profile(
     val version: Long = 0,
     val verified: Boolean = false,
     val online: Boolean = false,
+    val lastSeen: String? = null,
+    val activityStatus: String? = null,
     val distanceKm: Int? = null,
 ) {
     fun displayedAge(): Int? =

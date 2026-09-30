@@ -21,14 +21,15 @@ import androidx.compose.ui.unit.dp
 import app.bloom.android.core.model.Profile
 import app.bloom.android.core.ui.*
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ProfileOverview(
     me: Profile,
     edit: () -> Unit,
     interests: () -> Unit,
-    privacy: () -> Unit,
     share: () -> Unit,
     settings: () -> Unit,
+    interestNames: List<String> = emptyList(),
 ) {
     val completed =
         listOf(
@@ -86,54 +87,58 @@ fun ProfileOverview(
                 Modifier.fillMaxWidth().padding(horizontal = 20.dp),
                 verticalArrangement = Arrangement.spacedBy(18.dp),
             ) {
-                Surface(
-                    shape = RoundedCornerShape(20.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
-                ) {
-                    Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Row {
-                            Text("Твоя анкета", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
-                            Text(
-                                "${completed * 20}%",
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.Bold,
+                if (completed < 5)
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
+                    ) {
+                        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Row {
+                                Text("Твоя анкета", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+                                Text(
+                                    "${completed * 20}%",
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Bold,
+                                )
+                            }
+                            LinearProgressIndicator(
+                                progress = { completed / 5f },
+                                modifier = Modifier.fillMaxWidth().height(5.dp),
+                                trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
                             )
-                        }
-                        LinearProgressIndicator(
-                            progress = { completed / 5f },
-                            modifier = Modifier.fillMaxWidth().height(5.dp),
-                            trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                        )
-                        Text(
-                            if (completed < 5) "Добавь детали — так легче найти общее."
-                            else "Теперь в анкете чуть больше тебя.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        TextButton(onClick = edit, contentPadding = PaddingValues(0.dp)) {
-                            Text("Редактировать профиль →")
+                            Text(
+                                if (completed < 5) "Добавь детали — так легче найти общее."
+                                else "Теперь в анкете чуть больше тебя.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            TextButton(onClick = edit, contentPadding = PaddingValues(0.dp)) {
+                                Text("Редактировать профиль →")
+                            }
                         }
                     }
-                }
                 Text("Обо мне", style = MaterialTheme.typography.titleMedium)
                 Text(
                     me.bio?.takeIf { it.isNotBlank() } ?: "Расскажи, что тебя увлекает и чему ты улыбаешься.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodyLarge,
                 )
-                ProfileMenuRow(
-                    "Цели знакомства",
-                    me.searchModes.orEmpty().mapNotNull { GoalLabels[it] }.joinToString(" · "),
-                    Icons.Outlined.FavoriteBorder,
-                    edit,
-                )
-                ProfileMenuRow(
-                    "Мои интересы",
-                    if (me.interests.orEmpty().isEmpty()) "Что нас объединяет?" else "Выбрано: ${me.interests.size}",
-                    Icons.Outlined.LocalActivity,
-                    interests,
-                )
-                ProfileMenuRow("Приватность", "Ты решаешь, что видят другие", Icons.Outlined.Shield, privacy)
+                Text("Здесь для", style = MaterialTheme.typography.titleMedium)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    me.searchModes
+                        .orEmpty()
+                        .mapNotNull { GoalLabels[it] }
+                        .forEach { goal ->
+                            SuggestionChip(onClick = edit, label = { Text(goal) })
+                        }
+                }
+                Text("То, что меня увлекает", style = MaterialTheme.typography.titleMedium)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    interestNames.forEach { name -> SuggestionChip(onClick = interests, label = { Text(name) }) }
+                }
+                TextButton(onClick = interests) {
+                    Text(if (interestNames.isEmpty()) "Добавить интересы" else "Изменить интересы")
+                }
                 Spacer(Modifier.height(18.dp))
             }
         }

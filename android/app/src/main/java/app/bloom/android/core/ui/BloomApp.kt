@@ -5,7 +5,10 @@ import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.compose.*
 import app.bloom.android.AppGraph
 import app.bloom.android.core.model.Profile
@@ -176,13 +179,19 @@ private fun MainNavigation(
             consumeLink()
         }
     }
-    LaunchedEffect(Unit) {
-        try {
-            graph.users.heartbeat()
-        } catch (exception: CancellationException) {
-            throw exception
-        } catch (_: Exception) {
-            /* Presence is best-effort and must not block navigation. */
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(graph, lifecycle) {
+        lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            while (true) {
+                try {
+                    graph.users.heartbeat()
+                } catch (exception: CancellationException) {
+                    throw exception
+                } catch (_: Exception) {
+                    /* Presence is best-effort and must not block navigation. */
+                }
+                kotlinx.coroutines.delay(60_000)
+            }
         }
     }
     Scaffold(
@@ -257,6 +266,7 @@ private fun MainNavigation(
                     stack.arguments!!.getString("id")!!.toLong(),
                     me.id,
                     stack.arguments?.getString("message")?.toLongOrNull(),
+                    openProfile = { nav.navigate("profile/$it") },
                 ) {
                     nav.popBackStack()
                 }

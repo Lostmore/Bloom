@@ -39,17 +39,25 @@ fun MyProfileScreen(
     var error by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    var interestNames by remember(me.interests) { mutableStateOf<List<String>>(emptyList()) }
+    LaunchedEffect(me.interests) {
+        try {
+            interestNames = graph.users.interests().filter { it.id in me.interests.orEmpty() }.map { it.name }
+        } catch (exception: CancellationException) {
+            throw exception
+        } catch (_: Exception) {}
+    }
     ProfileOverview(
         me,
         edit = { edit = true },
         interests = { interests = true },
-        privacy = { privacy = true },
         share = {
             val intent =
                 Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, "bloom://profile/${me.id}")
             context.startActivity(Intent.createChooser(intent, null))
         },
         settings = { settings = true },
+        interestNames = interestNames,
     )
     if (settings)
         ProfileSettingsSheet(
@@ -66,6 +74,10 @@ fun MyProfileScreen(
             {
                 settings = false
                 photos = true
+            },
+            {
+                settings = false
+                privacy = true
             },
         ) {
             scope.launch {

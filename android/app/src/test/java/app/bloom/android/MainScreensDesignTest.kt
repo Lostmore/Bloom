@@ -70,7 +70,9 @@ class MainScreensDesignTest {
         assertTrue("Pull-down must refresh conversations", refreshed > 0)
         compose.onNodeWithContentDescription("Обзор").performClick()
         assertEquals("explore", destination)
-        listOf("Люди", "Обзор", "Симпатии", "Профиль").forEach { compose.onNodeWithContentDescription(it).assertIsDisplayed() }
+        listOf("Люди", "Обзор", "Симпатии", "Профиль").forEach {
+            compose.onNodeWithContentDescription(it).assertIsDisplayed()
+        }
     }
 
     private fun profile(theme: String) {
@@ -87,7 +89,7 @@ class MainScreensDesignTest {
                 interests = listOf("coffee", "travel"),
             )
         screen(theme, "me", {}) {
-            ProfileOverview(person, { edited = true }, {}, { privacy = true }, {}, {})
+            ProfileOverview(person, { edited = true }, {}, {}, { privacy = true })
         }
         compose.onNodeWithText("Алина, 24").assertIsDisplayed()
         capture("profile-$theme")
@@ -99,7 +101,7 @@ class MainScreensDesignTest {
         compose.onNodeWithTag("profile-cover-viewer").assertDoesNotExist()
         compose.onNodeWithContentDescription("Редактировать анкету").performClick()
         assertTrue(edited)
-        compose.onNodeWithText("Приватность").performScrollTo().performClick()
+        compose.onNodeWithContentDescription("Настройки").performClick()
         assertTrue(privacy)
     }
 

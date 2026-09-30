@@ -104,7 +104,10 @@ class ChatConnection(
                 if (message.id <= 0 || message.roomId != roomId || message.senderId.isNullOrBlank()) return
                 update { current ->
                     current.copy(
-                        messages = (current.messages + message).distinctBy { it.id }.sortedBy { it.id }.takeLast(500)
+                        messages =
+                            (current.messages.filterNot { it.id == message.id } + message)
+                                .sortedBy { it.id }
+                                .takeLast(500)
                     )
                 }
             }

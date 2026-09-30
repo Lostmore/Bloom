@@ -33,6 +33,19 @@ class ChatExperienceTest {
     @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
 
     @Test
+    fun ownStickerShowsReadInformationOnHold() {
+        val graph = AppGraph(compose.activity)
+        val message =
+            ChatMessage(9, 7, "me", BloomStickers.first().wire, "2026-09-30T10:00:00Z", readAt = "2026-09-30T10:01:00Z")
+        compose.setContent { BloomTheme("dark") { Surface { MessageBubble(graph, message, true, false) } } }
+        compose.onNodeWithContentDescription("Прочитано").assertExists()
+        compose.onNodeWithText("Привет, это я").performTouchInput { longClick() }
+        compose.onNodeWithText("О сообщении").assertIsDisplayed()
+        compose.onNodeWithText("Понятно").performClick()
+        compose.onNodeWithText("О сообщении").assertDoesNotExist()
+    }
+
+    @Test
     fun composerInsertsEmojiAndKeepsAttachmentAction() {
         var draft by mutableStateOf(TextFieldValue("Привет", TextRange(6)))
         var attached = false

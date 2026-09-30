@@ -20,6 +20,7 @@ fun ProfileSettingsSheet(
     logout: () -> Unit,
     delete: () -> Unit,
     photos: () -> Unit,
+    privacy: () -> Unit,
     refresh: () -> Unit,
 ) {
     ModalBottomSheet(
@@ -38,6 +39,7 @@ fun ProfileSettingsSheet(
                 }
             }
             ErrorMessage(error)
+            OutlinedButton(onClick = privacy, modifier = Modifier.fillMaxWidth()) { Text("Приватность") }
             OutlinedButton(onClick = refresh, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
                 Text("Обновить анкету")
             }

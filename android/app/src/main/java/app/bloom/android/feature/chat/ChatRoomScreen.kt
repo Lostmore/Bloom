@@ -1,5 +1,6 @@
 package app.bloom.android.feature.chat
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -24,13 +25,23 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
-fun ChatRoomScreen(graph: AppGraph, roomId: Long, myId: String, targetMessageId: Long? = null, back: () -> Unit) {
+fun ChatRoomScreen(
+    graph: AppGraph,
+    roomId: Long,
+    myId: String,
+    targetMessageId: Long? = null,
+    openProfile: (String) -> Unit = {},
+    back: () -> Unit,
+) {
     val connection = remember(graph, roomId) { ChatConnection(graph.http, graph.sessions, graph.baseUrl, roomId) }
     val state by connection.state.collectAsStateWithLifecycle()
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val scope = rememberCoroutineScope()
     val list = rememberLazyListState()
     var partner by remember(roomId) { mutableStateOf("Собеседник") }
+    var partnerProfile by remember(roomId) { mutableStateOf<app.bloom.android.core.model.Profile?>(null) }
+    var partnerInterests by remember(roomId) { mutableStateOf<List<String>>(emptyList()) }
+    var showPartner by remember(roomId) { mutableStateOf(false) }
     var context by remember(roomId, targetMessageId) { mutableStateOf<List<ChatMessage>>(emptyList()) }
     var contextNotice by remember { mutableStateOf<String?>(null) }
     var focused by remember(targetMessageId) { mutableStateOf(targetMessageId != null) }
@@ -52,10 +63,39 @@ fun ChatRoomScreen(graph: AppGraph, roomId: Long, myId: String, targetMessageId:
                 .rooms()
                 .orEmpty()
                 .find { it.id == roomId }
-                ?.let { partner = graph.users.profile(it.partner(myId)).nickname }
+                ?.let {
+                    partnerProfile = graph.users.profile(it.partner(myId))
+                    partner = partnerProfile!!.nickname
+                    partnerInterests =
+                        graph.users
+                            .interests()
+                            .filter { interest -> interest.id in partnerProfile!!.interests.orEmpty() }
+                            .map { interest -> interest.name }
+                }
         } catch (exception: CancellationException) {
             throw exception
         } catch (_: Exception) {}
+    }
+    val partnerId = partnerProfile?.id
+    LaunchedEffect(partnerId, lifecycle) {
+        if (partnerId != null)
+            lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                while (true) {
+                    delay(60_000)
+                    try {
+                        partnerProfile = graph.users.profile(partnerId)
+                        partner = partnerProfile!!.nickname
+                    } catch (exception: CancellationException) {
+                        throw exception
+                    } catch (exception: Exception) {
+                        if (exception is retrofit2.HttpException && exception.code() in listOf(403, 404)) {
+                            partnerProfile = null
+                            showPartner = false
+                            partnerInterests = emptyList()
+                        }
+                    }
+                }
+            }
     }
     LaunchedEffect(targetMessageId) {
         if (targetMessageId != null) {
@@ -90,6 +130,14 @@ fun ChatRoomScreen(graph: AppGraph, roomId: Long, myId: String, targetMessageId:
         }
     }
     DisposableEffect(connection) { onDispose { connection.disconnect() } }
+    ReadReceiptsEffect(graph, roomId, myId, messages, list)
+    if (showPartner)
+        partnerProfile?.let { profile ->
+            PartnerCard(profile, partnerInterests, { showPartner = false }) {
+                showPartner = false
+                openProfile(profile.id)
+            }
+        }
     LaunchedEffect(state.messages) { graph.chatPreviews.recordHistory(state.messages) }
     LaunchedEffect(messages.lastOrNull()?.id, highlighted) {
         val index = messages.indexOfFirst { it.id == highlighted }
@@ -108,11 +156,20 @@ fun ChatRoomScreen(graph: AppGraph, roomId: Long, myId: String, targetMessageId:
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(onClick = back) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Назад") }
-            PersonAvatar(partner, size = 40.dp)
-            Column(Modifier.weight(1f).padding(start = 12.dp)) {
+            PersonAvatar(
+                partner,
+                Modifier.clickable(enabled = partnerProfile != null) { showPartner = true },
+                size = 40.dp,
+            )
+            Column(
+                Modifier.weight(1f)
+                    .clickable(enabled = partnerProfile != null) { showPartner = true }
+                    .padding(start = 12.dp)
+            ) {
                 Text(partner, style = MaterialTheme.typography.titleMedium, maxLines = 1)
                 Text(
-                    if (state.connected) "Чат" else if (state.connecting) "Подключаемся…" else "Нет соединения",
+                    if (state.connected) partnerProfile?.let(::activityLabel) ?: "Чат"
+                    else if (state.connecting) "Подключаемся…" else "Нет соединения",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

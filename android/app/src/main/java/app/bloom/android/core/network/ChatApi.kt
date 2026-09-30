@@ -23,4 +23,6 @@ interface ChatApi {
     ): MessagePage
 
     @GET("conversations/capabilities") suspend fun capabilities(): ChatCapabilities
+
+    @POST("conversations/{id}/read") suspend fun markRead(@Path("id") roomId: Long, @Body body: Map<String, Long>)
 }
