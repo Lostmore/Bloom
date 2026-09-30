@@ -1,7 +1,10 @@
 package app.bloom.android.feature.chat
 
 import androidx.compose.runtime.*
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import app.bloom.android.AppGraph
 import app.bloom.android.core.model.ChatMessage
 import app.bloom.android.core.model.ChatRoom
@@ -26,6 +29,32 @@ fun ChatListScreen(
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var reload by remember { mutableIntStateOf(0) }
+    val connection = remember(graph) { ChatConnection(graph.http, graph.sessions, graph.baseUrl) }
+    val live by connection.state.collectAsStateWithLifecycle()
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(connection, lifecycle) {
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            try {
+                connection.connect()
+                while (true) {
+                    delay(30_000)
+                    if (
+                        !connection.state.value.connected ||
+                            (graph.sessions.session.value?.expiresAt ?: Long.MAX_VALUE) <
+                                System.currentTimeMillis() + 60_000
+                    )
+                        connection.connect()
+                }
+            } finally {
+                connection.disconnect()
+            }
+        }
+    }
+    DisposableEffect(connection) { onDispose { connection.disconnect() } }
+    LaunchedEffect(live.messages) {
+        graph.chatPreviews.recordHistory(live.messages)
+        if (live.messages.lastOrNull()?.roomId?.let { id -> rooms.none { it.id == id } } == true) reload++
+    }
     val previews by graph.chatPreviews.messages.collectAsStateWithLifecycle()
     val history by graph.chatPreviews.history.collectAsStateWithLifecycle()
     var query by remember { mutableStateOf("") }
@@ -63,7 +92,7 @@ fun ChatListScreen(
             searching = false
         }
     }
-    LaunchedEffect(reload) {
+    LaunchedEffect(reload, live.connected, live.roomsVersion) {
         loading = true
         error = null
         try {
@@ -103,7 +132,10 @@ fun ChatListScreen(
                 room.id,
                 names[room.partner(myId)] ?: "Собеседник",
                 last?.let {
-                    (if (it.senderId == myId) "Вы: " else "") + (it.content?.takeIf(String::isNotBlank) ?: "Вложение")
+                    (if (it.senderId == myId) "Вы: " else "") +
+                        (bloomSticker(it.content)?.let { sticker -> "Стикер · ${sticker.caption}" }
+                            ?: it.content?.takeIf(String::isNotBlank)
+                            ?: "Вложение")
                 },
                 last?.createdAt,
             )

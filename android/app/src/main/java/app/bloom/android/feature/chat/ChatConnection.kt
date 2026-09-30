@@ -17,14 +17,15 @@ data class ChatState(
     val connected: Boolean = false,
     val connecting: Boolean = false,
     val error: String? = null,
+    val roomsVersion: Long = 0,
 )
 
-/** Go's current protocol: JSON messages/history on /ws?room_id=...&token=.... */
+/** Live events for all rooms on /ws?token=...; history is fetched separately over REST. */
 class ChatConnection(
     private val http: OkHttpClient,
     private val sessions: SessionManager,
     private val baseUrl: HttpUrl,
-    private val roomId: Long,
+    private val roomId: Long? = null,
 ) {
     private val json = Gson()
     private val socketClient =
@@ -50,13 +51,7 @@ class ChatConnection(
                 val token = sessions.freshToken() ?: throw IOException("Signed out")
                 // Never log this URL: the Go handshake currently accepts its credential in a query
                 // parameter.
-                val url =
-                    baseUrl
-                        .resolve("ws")!!
-                        .newBuilder()
-                        .addQueryParameter("room_id", roomId.toString())
-                        .addQueryParameter("token", token)
-                        .build()
+                val url = baseUrl.resolve("ws")!!.newBuilder().addQueryParameter("token", token).build()
                 synchronized(this@ChatConnection) {
                     if (attempt != generation) return@withContext
                     socket = socketClient.newWebSocket(Request.Builder().url(url).build(), listener(attempt))
@@ -84,12 +79,24 @@ class ChatConnection(
 
     @Synchronized
     fun send(text: String, attachments: List<Attachment> = emptyList(), clientMessageId: String? = null): Boolean {
-        if (!mutable.value.connected || (text.isBlank() && attachments.isEmpty())) return false
-        val payload = mutableMapOf<String, Any>("content" to text.trim())
+        if (roomId == null || !mutable.value.connected || (text.isBlank() && attachments.isEmpty())) return false
+        val payload = mutableMapOf<String, Any>("content" to text.trim(), "room_id" to roomId)
         if (attachments.isNotEmpty())
             payload["attachments"] = attachments.map { mapOf("media_id" to it.mediaId, "media_type" to it.mediaType) }
         if (clientMessageId != null) payload["client_message_id"] = clientMessageId
         return socket?.send(json.toJson(payload)) == true
+    }
+
+    @Synchronized
+    fun mergeHistory(history: List<ChatMessage>) {
+        val valid = history.filter {
+            it.id > 0 && it.roomId == roomId && !it.senderId.isNullOrBlank() && !it.createdAt.isNullOrBlank()
+        }
+        mutable.update { current ->
+            current.copy(
+                messages = (valid + current.messages).associateBy { it.id }.values.sortedBy { it.id }.takeLast(500)
+            )
+        }
     }
 
     private fun listener(attempt: Int) =
@@ -101,7 +108,13 @@ class ChatConnection(
             override fun onMessage(webSocket: WebSocket, text: String) {
                 if (text.length > 256_000) return
                 val message = runCatching { json.fromJson(text, ChatMessage::class.java) }.getOrNull() ?: return
-                if (message.id <= 0 || message.roomId != roomId || message.senderId.isNullOrBlank()) return
+                if (message.roomId <= 0 || message.senderId.isNullOrBlank()) return
+                if (message.id == 0L) {
+                    update { it.copy(roomsVersion = it.roomsVersion + 1) }
+                    return
+                }
+                if (message.id < 0 || (roomId != null && message.roomId != roomId) || message.createdAt.isNullOrBlank())
+                    return
                 update { current ->
                     current.copy(
                         messages =

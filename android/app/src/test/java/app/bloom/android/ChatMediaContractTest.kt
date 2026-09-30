@@ -54,7 +54,7 @@ class ChatMediaContractTest {
     }
 
     @Test
-    fun searchAndContextUseGatewayRoutesAndOpaqueCursors() = runBlocking {
+    fun searchAndHistoryUseGatewayRoutesAndCurrentGoArrayResponse() = runBlocking {
         MockWebServer().use { server ->
             val api =
                 Retrofit.Builder()
@@ -72,11 +72,17 @@ class ChatMediaContractTest {
             assertEquals("/api/v1/conversations/search", request.requestUrl!!.encodedPath)
             assertEquals("кофе", request.requestUrl!!.queryParameter("q"))
             assertEquals("cursor/+=", request.requestUrl!!.queryParameter("cursor"))
-            server.enqueue(MockResponse().setHeader("Content-Type", "application/json").setBody("""{"items":[]}"""))
-            api.context(7, 19)
+            server.enqueue(
+                MockResponse()
+                    .setHeader("Content-Type", "application/json")
+                    .setBody(
+                        """[{"id":19,"room_id":7,"sender_id":"partner","content":"hello","created_at":"2026-09-30T10:00:00Z"}]"""
+                    )
+            )
+            assertEquals(19L, api.history(7)!!.single().id)
             val context = server.takeRequest()
             assertEquals("/api/v1/conversations/7/messages", context.requestUrl!!.encodedPath)
-            assertEquals("19", context.requestUrl!!.queryParameter("around"))
+            assertNull(context.requestUrl!!.queryParameter("around"))
         }
     }
 }

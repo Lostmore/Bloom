@@ -15,12 +15,7 @@ interface ChatApi {
         @Query("limit") limit: Int = 30,
     ): MessagePage
 
-    @GET("conversations/{id}/messages")
-    suspend fun context(
-        @Path("id") roomId: Long,
-        @Query("around") messageId: Long,
-        @Query("limit") limit: Int = 50,
-    ): MessagePage
+    @GET("conversations/{id}/messages") suspend fun history(@Path("id") roomId: Long): List<ChatMessage>?
 
     @GET("conversations/capabilities") suspend fun capabilities(): ChatCapabilities
 

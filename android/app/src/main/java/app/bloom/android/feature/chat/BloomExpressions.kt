@@ -6,8 +6,10 @@ import androidx.compose.foundation.lazy.grid.*
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -65,9 +67,10 @@ fun ExpressionPicker(
     emoji: (String) -> Unit,
     sticker: (BloomSticker) -> Unit,
 ) {
-    var selected by remember { mutableStateOf("Улыбки") }
+    var selected by rememberSaveable { mutableStateOf("Улыбки") }
     Column(Modifier.fillMaxWidth().height(280.dp)) {
         LazyRow(
+            modifier = Modifier.testTag("expression-categories"),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             contentPadding = PaddingValues(horizontal = 12.dp),
         ) {
@@ -98,8 +101,11 @@ fun ExpressionPicker(
                 }
             }
         } else {
+            // Capture this category before the lazy content runs: selection may change
+            // to the sticker tab while the old emoji grid is still being measured.
+            val emojiItems = EmojiGroups.getValue(selected).split(" ")
             LazyVerticalGrid(GridCells.Adaptive(48.dp), Modifier.weight(1f), contentPadding = PaddingValues(8.dp)) {
-                items(EmojiGroups.getValue(selected).split(" ")) { item ->
+                items(emojiItems) { item ->
                     TextButton(
                         onClick = { emoji(item) },
                         enabled = enabled,

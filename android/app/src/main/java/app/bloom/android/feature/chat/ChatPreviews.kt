@@ -16,7 +16,7 @@ class ChatPreviews {
         historyState.update { current ->
             (current + messages).associateBy { it.id }.values.sortedBy { it.id }.takeLast(3000)
         }
-        messages.lastOrNull()?.let(::record)
+        messages.groupBy { it.roomId }.values.forEach { room -> room.maxByOrNull { it.id }?.let(::record) }
     }
 
     fun record(message: ChatMessage) {

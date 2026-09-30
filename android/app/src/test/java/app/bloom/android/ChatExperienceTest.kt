@@ -10,6 +10,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.*
+import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
@@ -31,6 +32,28 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class ChatExperienceTest {
     @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
+
+    @Test
+    fun stickerTabCanOpenSelectAndReturnToEmoji() {
+        var draft by mutableStateOf(TextFieldValue())
+        val restoration = StateRestorationTester(compose)
+        restoration.setContent {
+            BloomTheme("dark") {
+                Surface { MessageComposer(draft, { draft = it }, true, true, {}, {}) }
+            }
+        }
+        compose.onNodeWithContentDescription("Эмодзи").performClick()
+        compose.onNodeWithTag("expression-categories").performScrollToIndex(5)
+        compose.onNodeWithText("Стикеры Bloom").performClick()
+        restoration.emulateSavedInstanceStateRestore()
+        compose.onNodeWithText("Привет, это я").assertIsDisplayed()
+        compose.onNodeWithText("Привет, это я").performClick()
+        assertEquals(BloomStickers.first().wire, draft.text)
+        compose.onNodeWithContentDescription("Убрать стикер").performClick()
+        compose.onNodeWithContentDescription("Эмодзи").performClick()
+        compose.onNodeWithText("😊").performClick()
+        assertEquals("😊", draft.text)
+    }
 
     @Test
     fun ownStickerShowsReadInformationOnHold() {

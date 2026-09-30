@@ -49,6 +49,22 @@ fun ChatRoomScreen(
     var showSearch by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
     var matchIndex by remember(query) { mutableIntStateOf(0) }
+    var loadingHistory by remember(roomId) { mutableStateOf(true) }
+    var historyError by remember(roomId) { mutableStateOf<String?>(null) }
+    var reloadHistory by remember(roomId) { mutableIntStateOf(0) }
+    LaunchedEffect(roomId, state.connected, reloadHistory) {
+        loadingHistory = true
+        historyError = null
+        try {
+            connection.mergeHistory(graph.chat.history(roomId).orEmpty())
+        } catch (exception: CancellationException) {
+            throw exception
+        } catch (_: Exception) {
+            historyError = "Не удалось загрузить историю. Попробуй ещё раз."
+        } finally {
+            loadingHistory = false
+        }
+    }
     val messages = if (focused && context.isNotEmpty()) context else state.messages
     val hits =
         remember(messages, query) {
@@ -100,7 +116,12 @@ fun ChatRoomScreen(
     LaunchedEffect(targetMessageId) {
         if (targetMessageId != null) {
             try {
-                context = graph.chat.context(roomId, targetMessageId).items.orEmpty().filter { it.roomId == roomId }
+                val history = graph.chat.history(roomId).orEmpty().filter { it.roomId == roomId }
+                val index = history.indexOfFirst { it.id == targetMessageId }
+                context =
+                    if (index < 0) emptyList()
+                    else history.subList((index - 25).coerceAtLeast(0), (index + 26).coerceAtMost(history.size))
+                if (index < 0) contextNotice = "Сообщение больше не доступно в истории."
             } catch (exception: CancellationException) {
                 throw exception
             } catch (exception: Exception) {
@@ -184,6 +205,11 @@ fun ChatRoomScreen(
             }
         }
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        if (loadingHistory) LinearProgressIndicator(Modifier.fillMaxWidth())
+        if (historyError != null) {
+            ErrorMessage(historyError)
+            TextButton(onClick = { reloadHistory++ }, enabled = !loadingHistory) { Text("Повторить загрузку истории") }
+        }
         if (showSearch) {
             OutlinedTextField(
                 query,
@@ -225,7 +251,7 @@ fun ChatRoomScreen(
             }
         }
         Box(Modifier.weight(1f).fillMaxWidth()) {
-            if (messages.isEmpty())
+            if (messages.isEmpty() && !loadingHistory && historyError == null)
                 EmptyBloom(
                     "Начните с простого «привет»",
                     "Можно написать сообщение или выбрать фото.",
