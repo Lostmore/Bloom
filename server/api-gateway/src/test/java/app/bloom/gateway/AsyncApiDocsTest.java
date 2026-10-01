@@ -63,7 +63,12 @@ class AsyncApiDocsTest {
                 .jsonPath("$.channels.chat.address").isEqualTo("/api/v1/ws")
                 .jsonPath("$.operations.receiveMessage.action").isEqualTo("receive")
                 .jsonPath("$.operations.deliverMessage.action").isEqualTo("send")
-                .jsonPath("$.components.messages.RoomChanged.examples[0].payload.id").isEqualTo(0)
+                .jsonPath("$.info.version").isEqualTo("2.0.0")
+                .jsonPath("$.components.messages.SendMessage.examples[0].payload.type").isEqualTo("new_message")
+                .jsonPath("$.components.messages.RoomChanged.examples[0].payload.payload.id").isEqualTo(0)
+                .jsonPath("$.operations.mark_as_readRequest.action").isEqualTo("receive")
+                .jsonPath("$.operations.PresenceEvent.action").isEqualTo("send")
+                .jsonPath("$.components.messages.ErrorEvent.examples[0].payload.error").isEqualTo("room is not active")
                 .jsonPath("$.components.securitySchemes.accessToken.in").isEqualTo("query");
     }
 

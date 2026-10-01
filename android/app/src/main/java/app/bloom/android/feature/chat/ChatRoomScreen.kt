@@ -33,7 +33,10 @@ fun ChatRoomScreen(
     openProfile: (String) -> Unit = {},
     back: () -> Unit,
 ) {
-    val connection = remember(graph, roomId) { ChatConnection(graph.http, graph.sessions, graph.baseUrl, roomId) }
+    val connection =
+        remember(graph, roomId) {
+            ChatConnection(graph.http, graph.sessions, graph.baseUrl, roomId)
+        }
     val state by connection.state.collectAsStateWithLifecycle()
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val scope = rememberCoroutineScope()
@@ -52,11 +55,14 @@ fun ChatRoomScreen(
     var loadingHistory by remember(roomId) { mutableStateOf(true) }
     var historyError by remember(roomId) { mutableStateOf<String?>(null) }
     var reloadHistory by remember(roomId) { mutableIntStateOf(0) }
-    LaunchedEffect(roomId, state.connected, reloadHistory) {
+    LaunchedEffect(roomId, state.connected, reloadHistory, state.historyVersion) {
         loadingHistory = true
         historyError = null
         try {
-            connection.mergeHistory(graph.chat.history(roomId).orEmpty())
+            val revision = state.historyVersion
+            val history = graph.chat.history(roomId).orEmpty()
+            connection.mergeHistory(history, revision)
+            if (focused) context = history.filter { it.roomId == roomId }
         } catch (exception: CancellationException) {
             throw exception
         } catch (_: Exception) {
@@ -69,10 +75,15 @@ fun ChatRoomScreen(
     val hits =
         remember(messages, query) {
             if (query.isBlank()) emptyList()
-            else messages.filter { it.content.orEmpty().contains(query.trim(), true) }.map { it.id }
+            else
+                messages
+                    .filter { it.deletedAt == null && it.content.orEmpty().contains(query.trim(), true) }
+                    .map { it.id }
         }
     val highlighted = if (showSearch) hits.getOrNull(matchIndex) else if (focused) targetMessageId else null
-    LaunchedEffect(hits.size) { matchIndex = matchIndex.coerceIn(0, hits.lastIndex.coerceAtLeast(0)) }
+    LaunchedEffect(hits.size) {
+        matchIndex = matchIndex.coerceIn(0, hits.lastIndex.coerceAtLeast(0))
+    }
     var partnerState by remember(graph, roomId, myId) { mutableStateOf<ChatPartner?>(null) }
     var reloadPartner by remember { mutableIntStateOf(0) }
     var profileRevision by remember { mutableIntStateOf(0) }
@@ -125,7 +136,11 @@ fun ChatRoomScreen(
                 val index = history.indexOfFirst { it.id == targetMessageId }
                 context =
                     if (index < 0) emptyList()
-                    else history.subList((index - 25).coerceAtLeast(0), (index + 26).coerceAtMost(history.size))
+                    else
+                        history.subList(
+                            (index - 25).coerceAtLeast(0),
+                            (index + 26).coerceAtMost(history.size),
+                        )
                 if (index < 0) contextNotice = "Сообщение больше не доступно в истории."
             } catch (exception: CancellationException) {
                 throw exception
@@ -145,8 +160,9 @@ fun ChatRoomScreen(
                 while (true) {
                     delay(60_000)
                     if (
-                        (graph.sessions.session.value?.expiresAt ?: Long.MAX_VALUE) <=
-                            System.currentTimeMillis() + 60_000
+                        !connection.state.value.connected ||
+                            (graph.sessions.session.value?.expiresAt ?: Long.MAX_VALUE) <=
+                                System.currentTimeMillis() + 60_000
                     )
                         connection.connect()
                 }
@@ -156,7 +172,16 @@ fun ChatRoomScreen(
         }
     }
     DisposableEffect(connection) { onDispose { connection.disconnect() } }
-    ReadReceiptsEffect(graph, roomId, myId, messages, list)
+    ReadReceiptsEffect(connection, myId, messages, list)
+    var typingNow by remember { mutableStateOf(false) }
+    LaunchedEffect(state.typingUntil, partnerProfile?.id) {
+        val until = state.typingUntil[partnerProfile?.id] ?: 0L
+        typingNow = until > System.currentTimeMillis()
+        if (typingNow) {
+            delay((until - System.currentTimeMillis()).coerceAtLeast(0))
+            typingNow = false
+        }
+    }
     if (showPartner)
         partnerProfile?.let { profile ->
             PartnerCard(
@@ -165,7 +190,12 @@ fun ChatRoomScreen(
                 { showPartner = false },
                 avatar = {
                     key(profileRevision) {
-                        ChatPartnerAvatar(graph, profile.nickname, partnerState?.photoId, size = 72.dp)
+                        ChatPartnerAvatar(
+                            graph,
+                            profile.nickname,
+                            partnerState?.photoId,
+                            size = 72.dp,
+                        )
                     }
                 },
             ) {
@@ -207,7 +237,9 @@ fun ChatRoomScreen(
             ) {
                 Text(partner, style = MaterialTheme.typography.titleMedium, maxLines = 1)
                 Text(
-                    if (state.connected) partnerProfile?.let(::activityLabel) ?: "Чат"
+                    if (state.connected && typingNow) "Печатает…"
+                    else if (state.connected)
+                        partnerProfile?.let { chatActivityLabel(it, state.onlineUsers[it.id]) } ?: "Чат"
                     else if (state.connecting) "Подключаемся…" else "Нет соединения",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -219,7 +251,10 @@ fun ChatRoomScreen(
                     query = ""
                 }
             ) {
-                Icon(if (showSearch) Icons.Outlined.Close else Icons.Outlined.Search, "Поиск в чате")
+                Icon(
+                    if (showSearch) Icons.Outlined.Close else Icons.Outlined.Search,
+                    "Поиск в чате",
+                )
             }
         }
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -234,7 +269,9 @@ fun ChatRoomScreen(
         if (loadingHistory) LinearProgressIndicator(Modifier.fillMaxWidth())
         if (historyError != null) {
             ErrorMessage(historyError)
-            TextButton(onClick = { reloadHistory++ }, enabled = !loadingHistory) { Text("Повторить загрузку истории") }
+            TextButton(onClick = { reloadHistory++ }, enabled = !loadingHistory) {
+                Text("Повторить загрузку истории")
+            }
         }
         if (showSearch) {
             OutlinedTextField(
@@ -260,17 +297,30 @@ fun ChatRoomScreen(
         }
         if (state.error != null) {
             ErrorMessage(state.error)
-            TextButton(onClick = { scope.launch { connection.connect() } }, enabled = !state.connecting) {
+            TextButton(
+                onClick = { scope.launch { connection.connect() } },
+                enabled = !state.connecting,
+            ) {
                 Text("Подключиться")
             }
         }
+        if (state.actionError != null) {
+            ErrorMessage(state.actionError)
+            TextButton(onClick = { connection.clearActionError() }) { Text("Закрыть") }
+        }
         if (focused) {
             if (contextNotice != null)
-                Text(contextNotice!!, Modifier.padding(12.dp), style = MaterialTheme.typography.bodySmall)
+                Text(
+                    contextNotice!!,
+                    Modifier.padding(12.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                )
             TextButton(
                 onClick = {
                     focused = false
-                    scope.launch { if (state.messages.isNotEmpty()) list.scrollToItem(state.messages.lastIndex) }
+                    scope.launch {
+                        if (state.messages.isNotEmpty()) list.scrollToItem(state.messages.lastIndex)
+                    }
                 }
             ) {
                 Text("К новым сообщениям")
@@ -303,12 +353,26 @@ fun ChatRoomScreen(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
-                        MessageBubble(graph, message, message.senderId == myId, message.id == highlighted)
+                        MessageBubble(
+                            graph,
+                            message,
+                            message.senderId == myId,
+                            message.id == highlighted,
+                            edit = if (state.connected) { text -> connection.edit(message.id, text) } else null,
+                            delete =
+                                if (state.connected) {
+                                    { connection.delete(message.id) }
+                                } else null,
+                        )
                     }
                 }
             if (list.canScrollForward && !showSearch)
                 SmallFloatingActionButton(
-                    onClick = { scope.launch { list.animateScrollToItem(messages.lastIndex.coerceAtLeast(0)) } },
+                    onClick = {
+                        scope.launch {
+                            list.animateScrollToItem(messages.lastIndex.coerceAtLeast(0))
+                        }
+                    },
                     modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp),
                     containerColor = MaterialTheme.colorScheme.surfaceVariant,
                 ) {

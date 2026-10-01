@@ -25,37 +25,108 @@ import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun MessageBubble(graph: AppGraph, message: ChatMessage, own: Boolean, highlighted: Boolean) {
+fun MessageBubble(
+    graph: AppGraph,
+    message: ChatMessage,
+    own: Boolean,
+    highlighted: Boolean,
+    edit: ((String) -> Boolean)? = null,
+    delete: (() -> Boolean)? = null,
+) {
     var details by remember(message.id) { mutableStateOf(false) }
+    var editing by remember(message.id) { mutableStateOf(false) }
+    var deleting by remember(message.id) { mutableStateOf(false) }
+    var replacement by remember(message.id, message.content) { mutableStateOf(message.content.orEmpty()) }
+    var actionError by remember(message.id) { mutableStateOf<String?>(null) }
     val clipboard = LocalClipboardManager.current
     val readTime = message.readAt?.let { runCatching { OffsetDateTime.parse(it) }.getOrNull() }
-    if (details)
+    fun closeDialog() {
+        details = false
+        editing = false
+        deleting = false
+        actionError = null
+    }
+    if (details || editing || deleting)
         AlertDialog(
-            onDismissRequest = { details = false },
-            title = { Text("О сообщении") },
-            text = {
+            onDismissRequest = { closeDialog() },
+            title = {
                 Text(
-                    if (readTime != null)
-                        "Прочитано: " +
-                            readTime
-                                .atZoneSameInstant(ZoneId.systemDefault())
-                                .format(DateTimeFormatter.ofPattern("dd.MM.yyyy, HH:mm"))
-                    else "Сохранено в чате. Подтверждение прочтения пока не получено."
+                    when {
+                        editing -> "Редактировать сообщение"
+                        deleting -> "Удалить сообщение?"
+                        else -> "О сообщении"
+                    }
                 )
             },
-            confirmButton = { TextButton(onClick = { details = false }) { Text("Понятно") } },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        clipboard.setText(AnnotatedString(message.content.orEmpty()))
-                        details = false
+            text = {
+                Column {
+                    when {
+                        editing ->
+                            OutlinedTextField(
+                                replacement,
+                                { replacement = it },
+                                modifier = Modifier.fillMaxWidth().heightIn(max = 200.dp),
+                                label = { Text("Текст") },
+                            )
+                        deleting -> Text("Сообщение будет помечено удалённым для участников чата.")
+                        else -> {
+                            Text(
+                                if (readTime != null)
+                                    "Прочитано: " +
+                                        readTime
+                                            .atZoneSameInstant(ZoneId.systemDefault())
+                                            .format(DateTimeFormatter.ofPattern("dd.MM.yyyy, HH:mm"))
+                                else "Сохранено в чате. Подтверждение прочтения пока не получено."
+                            )
+                            if (own && message.deletedAt == null) {
+                                if (edit != null) TextButton(onClick = { editing = true }) { Text("Редактировать") }
+                                if (delete != null) TextButton(onClick = { deleting = true }) { Text("Удалить") }
+                            }
+                        }
                     }
-                ) {
-                    Text("Копировать")
+                    actionError?.let { Text(it) }
                 }
             },
+            confirmButton = {
+                TextButton(
+                    enabled = !editing || (replacement.isNotBlank() && edit != null),
+                    onClick = {
+                        val sent =
+                            when {
+                                editing -> edit?.invoke(replacement) == true
+                                deleting -> delete?.invoke() == true
+                                else -> true
+                            }
+                        if (sent) closeDialog() else actionError = "Нет соединения. Попробуй ещё раз."
+                    },
+                ) {
+                    Text(
+                        when {
+                            editing -> "Сохранить"
+                            deleting -> "Удалить"
+                            else -> "Понятно"
+                        }
+                    )
+                }
+            },
+            dismissButton = {
+                if (editing || deleting) TextButton(onClick = { closeDialog() }) { Text("Отмена") }
+                else if (message.deletedAt == null)
+                    TextButton(
+                        onClick = {
+                            clipboard.setText(AnnotatedString(message.content.orEmpty()))
+                            closeDialog()
+                        }
+                    ) {
+                        Text("Копировать")
+                    }
+            },
         )
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = if (own) Arrangement.End else Arrangement.Start) {
+
+    Row(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = if (own) Arrangement.End else Arrangement.Start,
+    ) {
         Surface(
             Modifier.widthIn(max = 310.dp)
                 .combinedClickable(onClick = {}, onLongClick = { details = true })
@@ -67,25 +138,42 @@ fun MessageBubble(graph: AppGraph, message: ChatMessage, own: Boolean, highlight
                         }
                     }
                 },
-            shape = RoundedCornerShape(18.dp, 18.dp, if (own) 5.dp else 18.dp, if (own) 18.dp else 5.dp),
+            shape =
+                RoundedCornerShape(
+                    18.dp,
+                    18.dp,
+                    if (own) 5.dp else 18.dp,
+                    if (own) 18.dp else 5.dp,
+                ),
             color = if (own) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
             border = if (highlighted) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
         ) {
             Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                val photos =
-                    message.attachments
-                        .orEmpty()
-                        .filter { it.mediaType.orEmpty().startsWith("image/") || it.mediaType == "image" }
-                        .mapNotNull { mediaId(it)?.let(::PhotoSource) }
-                        .take(6)
-                if (photos.isNotEmpty()) PhotoAlbum(graph, photos, Modifier.width(294.dp))
-                val sticker = bloomSticker(message.content)
-                if (sticker != null) BloomStickerArt(sticker)
-                else if (!message.content.isNullOrBlank())
-                    Text(message.content, Modifier.padding(horizontal = 5.dp, vertical = 3.dp))
-                if (message.attachments.orEmpty().size > photos.size)
-                    Text("Вложение не поддерживается", style = MaterialTheme.typography.bodySmall)
+                if (message.deletedAt != null) {
+                    Text("Сообщение удалено", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else {
+                    val photos =
+                        message.attachments
+                            .orEmpty()
+                            .filter {
+                                it.mediaType.orEmpty().startsWith("image/") || it.mediaType == "image"
+                            }
+                            .mapNotNull { mediaId(it)?.let(::PhotoSource) }
+                            .take(6)
+                    if (photos.isNotEmpty()) PhotoAlbum(graph, photos, Modifier.width(294.dp))
+                    val sticker = bloomSticker(message.content)
+                    if (sticker != null) BloomStickerArt(sticker)
+                    else if (!message.content.isNullOrBlank())
+                        Text(message.content, Modifier.padding(horizontal = 5.dp, vertical = 3.dp))
+                    if (message.attachments.orEmpty().size > photos.size)
+                        Text(
+                            "Вложение не поддерживается",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                }
                 Row(Modifier.align(Alignment.End), verticalAlignment = Alignment.CenterVertically) {
+                    if (message.editedAt != null && message.deletedAt == null)
+                        Text("изменено", style = MaterialTheme.typography.labelSmall)
                     Text(
                         messageTime(message.createdAt),
                         Modifier.padding(horizontal = 5.dp),

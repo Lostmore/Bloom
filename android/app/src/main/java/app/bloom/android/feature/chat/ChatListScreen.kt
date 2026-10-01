@@ -52,6 +52,18 @@ fun ChatListScreen(
         }
     }
     DisposableEffect(connection) { onDispose { connection.disconnect() } }
+    LaunchedEffect(live.historyVersion, live.connected, reload) {
+        for (id in live.roomsNeedingHistory) {
+            try {
+                val revision = live.historyVersion
+                connection.mergeHistory(graph.chat.history(id).orEmpty(), revision, id)
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (_: Exception) {
+                error = "Не удалось обновить изменённые сообщения. Потяни список вниз для повтора."
+            }
+        }
+    }
     LaunchedEffect(live.messages) {
         graph.chatPreviews.recordHistory(live.messages)
         if (live.messages.lastOrNull()?.roomId?.let { id -> rooms.none { it.id == id } } == true) reload++
@@ -77,7 +89,10 @@ fun ChatListScreen(
         try {
             if (cursor == null) delay(350)
             val page = graph.chat.search(query.trim(), cursor)
-            results = ((if (cursor == null) emptyList() else results) + page.items.orEmpty()).distinctBy { it.id }
+            results =
+                ((if (cursor == null) emptyList() else results) + page.items.orEmpty()).distinctBy {
+                    it.id
+                }
             nextCursor = page.nextCursor
             searchNotice = null
             cachedSearch = false
@@ -148,7 +163,9 @@ fun ChatListScreen(
             if (cachedSearch)
                 history
                     .filter {
-                        it.content.orEmpty().contains(query.trim(), true) && rooms.any { room -> room.id == it.roomId }
+                        it.deletedAt == null &&
+                            it.content.orEmpty().contains(query.trim(), true) &&
+                            rooms.any { room -> room.id == it.roomId }
                     }
                     .sortedByDescending { it.id }
             else results,

@@ -42,7 +42,13 @@ fun confirmsSend(
             (!hasPhotos && message.clientMessageId == null && message.id > after && message.content == text.trim()))
 
 @Composable
-fun ChatComposer(graph: AppGraph, roomId: Long, myId: String, connection: ChatConnection, state: ChatState) {
+fun ChatComposer(
+    graph: AppGraph,
+    roomId: Long,
+    myId: String,
+    connection: ChatConnection,
+    state: ChatState,
+) {
     var draft by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue()) }
     var photos by rememberSaveable { mutableStateOf(listOf<String>()) }
     var busy by remember { mutableStateOf(false) }
@@ -59,6 +65,22 @@ fun ChatComposer(graph: AppGraph, roomId: Long, myId: String, connection: ChatCo
     var viewing by remember { mutableStateOf<Int?>(null) }
     val resolver = LocalContext.current.contentResolver
     val scope = rememberCoroutineScope()
+    LaunchedEffect(draft.text, state.connected) {
+        if (!state.connected) return@LaunchedEffect
+        delay(500)
+        connection.typing(draft.text.isNotBlank())
+        if (draft.text.isNotBlank()) {
+            delay(3000)
+            connection.typing(false)
+        }
+    }
+    LaunchedEffect(state.errorVersion) {
+        if (state.actionError != null && pending != null) {
+            pending = null
+            busy = false
+            error = "Сервер отклонил действие. Черновик сохранён."
+        }
+    }
     LaunchedEffect(roomId, checkAgain) {
         checking = true
         try {
@@ -79,7 +101,10 @@ fun ChatComposer(graph: AppGraph, roomId: Long, myId: String, connection: ChatCo
         rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(6)) { selected ->
             val accepted = selected.mapNotNull { uri ->
                 try {
-                    resolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    resolver.takePersistableUriPermission(
+                        uri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                    )
                     uri.toString()
                 } catch (_: SecurityException) {
                     error = "Не удалось открыть фото. Выбери его ещё раз."
@@ -90,7 +115,11 @@ fun ChatComposer(graph: AppGraph, roomId: Long, myId: String, connection: ChatCo
         }
     LaunchedEffect(state.messages, pending) {
         val key = pending ?: return@LaunchedEffect
-        if (state.messages.any { confirmsSend(it, myId, key, draft.text, photos.isNotEmpty(), sentAfter) }) {
+        if (
+            state.messages.any {
+                confirmsSend(it, myId, key, draft.text, photos.isNotEmpty(), sentAfter)
+            }
+        ) {
             draft = TextFieldValue()
             photos = emptyList()
             pending = null
@@ -116,7 +145,11 @@ fun ChatComposer(graph: AppGraph, roomId: Long, myId: String, connection: ChatCo
             ) {
                 itemsIndexed(photos, key = { _, uri -> uri }) { index, uri ->
                     Box(Modifier.size(84.dp)) {
-                        ChatPhoto(graph, PhotoSource(uri, true), Modifier.fillMaxSize().clickable { viewing = index })
+                        ChatPhoto(
+                            graph,
+                            PhotoSource(uri, true),
+                            Modifier.fillMaxSize().clickable { viewing = index },
+                        )
                         IconButton(
                             onClick = { photos = photos - uri },
                             enabled = !busy,
@@ -177,7 +210,7 @@ fun ChatComposer(graph: AppGraph, roomId: Long, myId: String, connection: ChatCo
                                     .also { uploaded[uri] = it }
                         }
                         sentAfter = state.messages.lastOrNull()?.id ?: 0
-                        if (connection.send(draft.text, attachments, attemptKey)) pending = attemptKey
+                        if (connection.send(draft.text, attachments)) pending = attemptKey
                         else {
                             busy = false
                             error = "Связь прервалась. Черновик сохранён."
@@ -192,10 +225,14 @@ fun ChatComposer(graph: AppGraph, roomId: Long, myId: String, connection: ChatCo
                     }
                 }
             },
-            attach = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+            attach = {
+                picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+            },
         )
     }
     viewing
         ?.takeIf { it < photos.size }
-        ?.let { PhotoViewer(graph, photos.map { uri -> PhotoSource(uri, true) }, it) { viewing = null } }
+        ?.let {
+            PhotoViewer(graph, photos.map { uri -> PhotoSource(uri, true) }, it) { viewing = null }
+        }
 }

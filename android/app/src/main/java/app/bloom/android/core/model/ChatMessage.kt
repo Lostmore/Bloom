@@ -9,4 +9,6 @@ data class ChatMessage(
     val attachments: List<Attachment>? = null,
     @com.google.gson.annotations.SerializedName("client_message_id") val clientMessageId: String? = null,
     @com.google.gson.annotations.SerializedName("read_at") val readAt: String? = null,
+    @com.google.gson.annotations.SerializedName("edited_at") val editedAt: String? = null,
+    @com.google.gson.annotations.SerializedName("deleted_at") val deletedAt: String? = null,
 )

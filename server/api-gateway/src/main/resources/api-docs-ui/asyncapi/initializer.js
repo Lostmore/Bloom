@@ -88,11 +88,16 @@ function renderEvents() {
           ['Поле', 'Тип', 'Описание'].forEach(title => head.append(element('th', title)));
           const thead = element('thead'); thead.append(head); table.append(thead);
           const tbody = element('tbody');
-          for (const [name, rawProperty] of Object.entries(properties)) {
+          const fields = Object.entries(properties).map(([name, schema]) => [name, schema, payload.required?.includes(name)]);
+          const body = resolve(properties.payload);
+          for (const [name, schema] of Object.entries(body.properties || {})) {
+            fields.push([`payload.${name}`, schema, body.required?.includes(name)]);
+          }
+          for (const [name, rawProperty, required] of fields) {
             const property = resolve(rawProperty);
             const row = element('tr');
             const field = element('td'); field.append(element('code', name));
-            if (payload.required?.includes(name)) field.append(element('small', 'Обязательное'));
+            if (required) field.append(element('small', 'Обязательное'));
             row.append(field, element('td', property.type || 'object'), element('td', property.description || 'Подробности в спецификации.'));
             tbody.append(row);
           }
@@ -111,7 +116,7 @@ function renderEvents() {
 }
 
 function renderGuide() {
-  const chat = documentSchema['x-bloom-guide'] === 'chat-websocket-v1';
+  const chat = documentSchema['x-bloom-guide'] === 'chat-websocket-v2';
   document.querySelector('#connection-guide').hidden = !chat;
   document.querySelector('#generic-guide').hidden = chat;
   document.querySelector('#limitations').hidden = !chat;
@@ -125,15 +130,38 @@ url.searchParams.set('token', accessToken);
 
 const socket = new WebSocket(url);
 socket.onopen = () => {
-  socket.send(JSON.stringify({ room_id: roomId, content: 'Привет!' }));
+  socket.send(JSON.stringify({
+    type: 'new_message',
+    payload: { room_id: roomId, content: 'Привет!' }
+  }));
 };
 socket.onmessage = ({ data }) => {
-  const message = JSON.parse(data);
-  if (message.id === 0) {
-    // Обновить список комнат через HTTP.
+  const event = JSON.parse(data);
+  if (event.type === 'error') {
+    console.error(event.error); // Ошибка без request_id.
     return;
   }
-  // Обновить переписку message.room_id; убрать дубли по message.id.
+  const message = event.payload;
+  switch (event.type) {
+    case 'new_message':
+      if (message.id === 0) {
+        // Обновить список комнат через HTTP, не добавлять в историю.
+        return;
+      }
+      // Обновить переписку message.room_id; убрать дубли по message.id.
+      break;
+    case 'edit_message':
+    case 'delete_message':
+    case 'mark_as_read':
+      // Обновить message.message_id; точные времена получить из HTTP-истории.
+      break;
+    case 'typing':
+      // Показать message.is_typing для message.user_id, скрыть по таймауту.
+      break;
+    case 'presence':
+      // Обновить message.status для message.user_id.
+      break;
+  }
 };
 socket.onclose = () => {
   // Переподключиться с задержкой и загрузить пропущенную историю.

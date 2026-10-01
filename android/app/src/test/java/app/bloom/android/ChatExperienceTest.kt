@@ -88,6 +88,46 @@ class ChatExperienceTest {
     }
 
     @Test
+    fun messageActionsSendEditedTextAndDeletedMessageHidesContent() {
+        val graph = AppGraph(compose.activity)
+        var message by mutableStateOf(ChatMessage(10, 7, "me", "Original", "2026-10-01T10:00:00Z"))
+        var edited: String? = null
+        var deleted = false
+        compose.setContent {
+            BloomTheme("dark") {
+                Surface {
+                    MessageBubble(
+                        graph,
+                        message,
+                        true,
+                        false,
+                        edit = {
+                            edited = it
+                            true
+                        },
+                        delete = {
+                            deleted = true
+                            true
+                        },
+                    )
+                }
+            }
+        }
+        compose.onNodeWithText("Original").performTouchInput { longClick() }
+        compose.onNodeWithText("Редактировать").performClick()
+        compose.onNode(hasSetTextAction()).performTextReplacement("Changed")
+        compose.onNodeWithText("Сохранить").performClick()
+        assertEquals("Changed", edited)
+        compose.onNodeWithText("Original").performTouchInput { longClick() }
+        compose.onNodeWithText("Удалить").performClick()
+        compose.onNodeWithText("Удалить").performClick()
+        assertTrue(deleted)
+        compose.runOnIdle { message = message.copy(deletedAt = "2026-10-01T10:01:00Z") }
+        compose.onNodeWithText("Original").assertDoesNotExist()
+        compose.onNodeWithText("Сообщение удалено").assertIsDisplayed()
+    }
+
+    @Test
     fun globalSearchOpensExactMessage() {
         var opened: Pair<Long, Long>? = null
         compose.setContent {

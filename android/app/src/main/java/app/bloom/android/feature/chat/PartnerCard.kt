@@ -31,6 +31,16 @@ fun activityLabel(profile: Profile): String {
     }
 }
 
+/** Users controls visibility; raw Chat presence must not reveal hidden activity. */
+fun chatActivityLabel(profile: Profile, connected: Boolean?): String {
+    if (profile.lastSeen == null) return activityLabel(profile)
+    return when (connected) {
+        true -> "В сети"
+        false -> activityLabel(profile.copy(online = false))
+        null -> activityLabel(profile)
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PartnerCard(
