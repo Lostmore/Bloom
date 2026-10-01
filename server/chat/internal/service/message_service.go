@@ -90,3 +90,7 @@ func (s *MessageService) EditMessage(ctx context.Context, messageID int64, newCo
 func (s *MessageService) DeleteMessage(ctx context.Context, messageID int64, userID uuid.UUID) error {
 	return s.msgRepo.SoftDelete(ctx, messageID, time.Now(), userID)
 }
+
+func (s *MessageService) SearchMessages(ctx context.Context, userID uuid.UUID, query string, cursor string, limit int) (*domain.MessagePage, error) {
+	return s.msgRepo.SearchByUser(ctx, userID, query, cursor, limit)
+}

@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"strconv"
 	"time"
 
 	"bloom.local/chat/internal/domain"
@@ -173,4 +175,68 @@ WHERE ma.message_id = $1`, messageID).Scan(&attachments)
 		}
 	}
 	return nil
+}
+
+func (r *MessageRepo) SearchByUser(ctx context.Context, userID uuid.UUID, query string, cursor string, limit int) (*domain.MessagePage, error) {
+	var cursorID int64
+	err := error(nil)
+	if cursor != "" {
+		cursorID, err = strconv.ParseInt(cursor, 10, 64)
+		if err != nil {
+			return nil, err
+		}
+	}
+	rows, err := r.pool.Query(ctx, `SELECT m.id, m.room_id, m.sender_id, m.content, m.created_at, m.edited_at, m.deleted_at, m.read_at,
+    (
+        SELECT COALESCE(json_agg(
+            json_build_object(
+                'id', ma.id,
+                'message_id', ma.message_id,
+                'url', ma.url, 
+                'media_type', ma.media_type,
+                'created_at', ma.created_at
+            )
+        ), '[]')
+        FROM message_attachments ma WHERE ma.message_id = m.id
+    ) AS attachments
+FROM messages m
+JOIN (SELECT id,user1_id,user2_id FROM rooms WHERE user1_id = $1 OR user2_id = $1) AS rooms on rooms.id = m.room_id
+WHERE m.content ILIKE '%' || $2 || '%' AND m.deleted_at IS NULL AND ($4=0 OR m.id<$4)
+ORDER BY m.id DESC
+LIMIT $3`, userID, query, limit, cursorID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	messages := make([]*domain.Message, 0)
+	var attachmentsJSON []byte
+	for rows.Next() {
+		var m domain.Message
+		err := rows.Scan(&m.ID, &m.RoomID, &m.SenderID, &m.Content, &m.CreatedAt, &m.EditedAt, &m.DeletedAt, &m.ReadAt, &attachmentsJSON)
+		if err != nil {
+			return nil, err
+		}
+		if attachmentsJSON != nil {
+			err = json.Unmarshal(attachmentsJSON, &m.Attachments)
+			if err != nil {
+				return nil, err
+			}
+		}
+		messages = append(messages, &m)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+	var nextCursor *string
+	if len(messages) == limit {
+		lastID := fmt.Sprintf("%d", messages[len(messages)-1].ID)
+		nextCursor = &lastID
+	} else {
+		nextCursor = nil
+	}
+	messagePage := &domain.MessagePage{
+		Items:      messages,
+		NextCursor: nextCursor,
+	}
+	return messagePage, nil
 }

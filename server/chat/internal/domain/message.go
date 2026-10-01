@@ -36,6 +36,11 @@ type MessageSavedEvent struct {
 	AttachmentURLs []string `json:"attachment_urls"`
 }
 
+type MessagePage struct {
+	Items      []*Message `json:"items"`
+	NextCursor *string    `json:"nextCursor"`
+}
+
 // MessageRepository описывает методы для сохранения и получения сообщений.
 type MessageRepository interface {
 	Save(ctx context.Context, msg *Message) error
@@ -43,6 +48,7 @@ type MessageRepository interface {
 	MarkAsRead(ctx context.Context, messageID int64, readAt time.Time, userID uuid.UUID) error
 	UpdateContent(ctx context.Context, messageID int64, newContent string, editedAt time.Time, userID uuid.UUID) error
 	SoftDelete(ctx context.Context, messageID int64, deletedAt time.Time, userID uuid.UUID) error
+	SearchByUser(ctx context.Context, userID uuid.UUID, query string, cursor string, limit int) (*MessagePage, error)
 }
 
 type MessageEventProducer interface {
