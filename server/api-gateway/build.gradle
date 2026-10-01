@@ -4,3 +4,10 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'org.webjars:swagger-ui:5.32.15'
 }
+
+tasks.named('processResources') {
+    from(rootProject.file('../contracts')) {
+        include '*-asyncapi.json'
+        into 'asyncapi-docs'
+    }
+}

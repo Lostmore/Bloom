@@ -91,6 +91,10 @@ spring:
 bloom:
   api-docs:
     enabled: ${API_DOCS_ENABLED:true}
+    async-services:
+      chat:
+        name: Bloom Chat WebSocket
+        source: classpath:/asyncapi-docs/chat-asyncapi.json
     services:
       identity:
         name: Bloom Identity
