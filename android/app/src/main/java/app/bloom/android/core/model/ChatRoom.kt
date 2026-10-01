@@ -9,5 +9,13 @@ data class ChatRoom(
     @com.google.gson.annotations.SerializedName("last_message_at") val lastMessageAt: String? = null,
     @com.google.gson.annotations.SerializedName("created_at") val createdAt: String? = null,
 ) {
-    fun partner(user: String) = if (user1Id == user) user2Id else user1Id
+    fun partnerOrNull(user: String): String? =
+        when {
+            user.isBlank() -> null
+            user1Id.equals(user, ignoreCase = true) -> user2Id
+            user2Id.equals(user, ignoreCase = true) -> user1Id
+            else -> null
+        }?.takeIf { it.isNotBlank() && !it.equals(user, ignoreCase = true) }
+
+    fun partner(user: String): String = requireNotNull(partnerOrNull(user)) { "User is not a room participant" }
 }

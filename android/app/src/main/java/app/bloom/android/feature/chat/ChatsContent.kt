@@ -27,7 +27,13 @@ import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-data class ChatRowItem(val id: Long, val name: String, val preview: String? = null, val timestamp: String? = null)
+data class ChatRowItem(
+    val id: Long,
+    val name: String,
+    val preview: String? = null,
+    val timestamp: String? = null,
+    val photoId: String? = null,
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -43,6 +49,7 @@ fun ChatsContent(
     queryChanged: (String) -> Unit = {},
     openMessage: (Long, Long) -> Unit = { room, _ -> openChat(room) },
     moreResults: (() -> Unit)? = null,
+    avatar: @Composable (ChatRowItem) -> Unit = { PersonAvatar(it.name, size = 58.dp) },
 ) {
     var query by rememberSaveable { mutableStateOf("") }
     LaunchedEffect(query) { queryChanged(query) }
@@ -103,7 +110,9 @@ fun ChatsContent(
                     }
                 }
                 if (error != null) item { Box(Modifier.padding(20.dp)) { ErrorMessage(error) } }
-                items(filtered, key = { "room-${it.id}" }) { chat -> ConversationRow(chat) { openChat(chat.id) } }
+                items(filtered, key = { "room-${it.id}" }) { chat ->
+                    ConversationRow(chat, avatar) { openChat(chat.id) }
+                }
                 if (query.isNotBlank()) {
                     item {
                         Column(
@@ -127,7 +136,9 @@ fun ChatsContent(
                                 items.find { it.id == message.roomId }?.name ?: "Собеседник",
                                 message.content,
                                 message.createdAt,
-                            )
+                                items.find { it.id == message.roomId }?.photoId,
+                            ),
+                            avatar,
                         ) {
                             openMessage(message.roomId, message.id)
                         }
@@ -152,14 +163,14 @@ fun ChatsContent(
 }
 
 @Composable
-private fun ConversationRow(chat: ChatRowItem, open: () -> Unit) {
+private fun ConversationRow(chat: ChatRowItem, avatar: @Composable (ChatRowItem) -> Unit, open: () -> Unit) {
     Column {
         Row(
             Modifier.fillMaxWidth().clickable(onClick = open).padding(horizontal = 22.dp, vertical = 15.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            PersonAvatar(chat.name, size = 58.dp)
+            avatar(chat)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,

@@ -73,45 +73,50 @@ fun ChatRoomScreen(
         }
     val highlighted = if (showSearch) hits.getOrNull(matchIndex) else if (focused) targetMessageId else null
     LaunchedEffect(hits.size) { matchIndex = matchIndex.coerceIn(0, hits.lastIndex.coerceAtLeast(0)) }
-    LaunchedEffect(roomId) {
-        try {
-            graph.chat
-                .rooms()
-                .orEmpty()
-                .find { it.id == roomId }
-                ?.let {
-                    partnerProfile = graph.users.profile(it.partner(myId))
-                    partner = partnerProfile!!.nickname
-                    partnerInterests =
-                        graph.users
-                            .interests()
-                            .filter { interest -> interest.id in partnerProfile!!.interests.orEmpty() }
-                            .map { interest -> interest.name }
-                }
-        } catch (exception: CancellationException) {
-            throw exception
-        } catch (_: Exception) {}
-    }
-    val partnerId = partnerProfile?.id
-    LaunchedEffect(partnerId, lifecycle) {
-        if (partnerId != null)
-            lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-                while (true) {
-                    delay(60_000)
-                    try {
-                        partnerProfile = graph.users.profile(partnerId)
-                        partner = partnerProfile!!.nickname
-                    } catch (exception: CancellationException) {
-                        throw exception
-                    } catch (exception: Exception) {
-                        if (exception is retrofit2.HttpException && exception.code() in listOf(403, 404)) {
-                            partnerProfile = null
-                            showPartner = false
-                            partnerInterests = emptyList()
-                        }
+    var partnerState by remember(graph, roomId, myId) { mutableStateOf<ChatPartner?>(null) }
+    var reloadPartner by remember { mutableIntStateOf(0) }
+    var profileRevision by remember { mutableIntStateOf(0) }
+    var loadingPartner by remember { mutableStateOf(false) }
+    LaunchedEffect(graph, roomId, myId, lifecycle, reloadPartner) {
+        lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            while (true) {
+                loadingPartner = true
+                try {
+                    val room = graph.chat.rooms().orEmpty().find { it.id == roomId && it.active }
+                    val id = room?.partnerOrNull(myId)
+                    val loaded = if (id == null) ChatPartner(unavailable = true) else loadChatPartner(graph.users, id)
+                    partnerState = loaded
+                    partnerProfile = loaded.profile
+                    partner = loaded.name
+                    partnerInterests = emptyList()
+                    if (loaded.profile == null) showPartner = false
+                    profileRevision++
+                    if (loaded.profile != null) {
+                        try {
+                            partnerInterests =
+                                graph.users
+                                    .interests()
+                                    .filter { it.id in loaded.profile.interests.orEmpty() }
+                                    .map { it.name }
+                        } catch (exception: CancellationException) {
+                            throw exception
+                        } catch (_: Exception) {}
                     }
+                } catch (exception: CancellationException) {
+                    throw exception
+                } catch (exception: Exception) {
+                    val denied = exception is retrofit2.HttpException && exception.code() in setOf(403, 404, 410)
+                    partnerState = ChatPartner(unavailable = denied)
+                    partnerProfile = null
+                    partner = partnerState!!.name
+                    partnerInterests = emptyList()
+                    showPartner = false
+                } finally {
+                    loadingPartner = false
                 }
+                delay(60_000)
             }
+        }
     }
     LaunchedEffect(targetMessageId) {
         if (targetMessageId != null) {
@@ -154,7 +159,16 @@ fun ChatRoomScreen(
     ReadReceiptsEffect(graph, roomId, myId, messages, list)
     if (showPartner)
         partnerProfile?.let { profile ->
-            PartnerCard(profile, partnerInterests, { showPartner = false }) {
+            PartnerCard(
+                profile,
+                partnerInterests,
+                { showPartner = false },
+                avatar = {
+                    key(profileRevision) {
+                        ChatPartnerAvatar(graph, profile.nickname, partnerState?.photoId, size = 72.dp)
+                    }
+                },
+            ) {
                 showPartner = false
                 openProfile(profile.id)
             }
@@ -177,11 +191,15 @@ fun ChatRoomScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(onClick = back) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Назад") }
-            PersonAvatar(
-                partner,
-                Modifier.clickable(enabled = partnerProfile != null) { showPartner = true },
-                size = 40.dp,
-            )
+            key(roomId, profileRevision) {
+                ChatPartnerAvatar(
+                    graph,
+                    partner,
+                    partnerState?.photoId,
+                    Modifier.clickable(enabled = partnerProfile != null) { showPartner = true },
+                    size = 40.dp,
+                )
+            }
             Column(
                 Modifier.weight(1f)
                     .clickable(enabled = partnerProfile != null) { showPartner = true }
@@ -205,6 +223,14 @@ fun ChatRoomScreen(
             }
         }
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        if (partnerState?.profile == null && partnerState != null) {
+            TextButton(onClick = { reloadPartner++ }, enabled = !loadingPartner) {
+                Text(
+                    if (partnerState?.unavailable == true) "Профиль недоступен · Проверить снова"
+                    else "Не удалось загрузить собеседника · Повторить"
+                )
+            }
+        }
         if (loadingHistory) LinearProgressIndicator(Modifier.fillMaxWidth())
         if (historyError != null) {
             ErrorMessage(historyError)

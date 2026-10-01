@@ -24,9 +24,9 @@ fun ChatListScreen(
     openChat: (Long) -> Unit,
     openMessage: (Long, Long) -> Unit = { room, _ -> openChat(room) },
 ) {
-    var rooms by remember { mutableStateOf<List<ChatRoom>>(emptyList()) }
-    var names by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
-    var nameFailures by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
+    var rooms by remember(graph, myId) { mutableStateOf<List<ChatRoom>>(emptyList()) }
+    var partners by remember(graph, myId) { mutableStateOf<Map<String, ChatPartner>>(emptyMap()) }
+    var profileRevision by remember { mutableIntStateOf(0) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var reload by remember { mutableIntStateOf(0) }
@@ -93,40 +93,35 @@ fun ChatListScreen(
             searching = false
         }
     }
-    LaunchedEffect(reload, live.connected, live.roomsVersion) {
+    LaunchedEffect(graph, myId, reload, live.connected, live.roomsVersion) {
         loading = true
         error = null
         try {
-            rooms = graph.chat.rooms().orEmpty().filter { it.active }.distinctBy { it.id }
+            rooms =
+                graph.chat.rooms().orEmpty().filter { it.active && it.partnerOrNull(myId) != null }.distinctBy { it.id }
+            val ids = rooms.map { it.partner(myId) }.distinct()
+            partners = partners.filterKeys { it in ids }
             val limit = Semaphore(4)
             coroutineScope {
-                rooms
-                    .map { room ->
+                ids.map { id ->
                         async {
                             limit.withPermit {
-                                val id = room.partner(myId)
-                                try {
-                                    names = names + (id to graph.users.profile(id).nickname)
-                                    nameFailures = nameFailures - id
-                                } catch (exception: CancellationException) {
-                                    throw exception
-                                } catch (exception: Exception) {
-                                    names = names - id
-                                    nameFailures =
-                                        nameFailures +
-                                            (id to
-                                                (exception is retrofit2.HttpException &&
-                                                    exception.code() in listOf(403, 404)))
-                                }
+                                val loaded = loadChatPartner(graph.users, id)
+                                partners = partners + (id to loaded)
                             }
                         }
                     }
                     .awaitAll()
             }
+            profileRevision++
         } catch (exception: CancellationException) {
             throw exception
         } catch (exception: Exception) {
             error = exception.userMessage()
+            if (exception is retrofit2.HttpException && exception.code() in setOf(401, 403)) {
+                rooms = emptyList()
+                partners = emptyMap()
+            }
         } finally {
             loading = false
         }
@@ -135,21 +130,16 @@ fun ChatListScreen(
         rooms
             .map { room ->
                 val id = room.partner(myId)
-                val name =
-                    names[id]
-                        ?: when (nameFailures[id]) {
-                            true -> "Профиль недоступен"
-                            false -> "Имя не загрузилось"
-                            null -> "Собеседник"
-                        }
-                chatRoomPreview(room, previews[room.id], myId, name)
+                val partner = partners[id]
+                chatRoomPreview(room, previews[room.id], myId, partner?.name ?: "Собеседник")
+                    .copy(photoId = partner?.photoId)
             }
             .sortedWith(compareByDescending<ChatRowItem> { chatTimestamp(it.timestamp) }.thenByDescending { it.id })
     ChatsContent(
         items,
         loading,
         error
-            ?: if (nameFailures.values.any { !it })
+            ?: if (partners.values.any { it.profile == null && !it.unavailable })
                 "Не удалось получить часть имён из Users. Потяни список вниз, чтобы повторить."
             else null,
         { if (!loading) reload++ },
@@ -175,5 +165,10 @@ fun ChatListScreen(
         },
         openMessage = openMessage,
         moreResults = nextCursor?.let { next -> { cursor = next } },
+        avatar = { item ->
+            key(item.id, profileRevision) {
+                ChatPartnerAvatar(graph, item.name, item.photoId)
+            }
+        },
     )
 }

@@ -32,7 +32,14 @@ data class PhotoSource(val value: String, val local: Boolean = false)
 private val decoding = Semaphore(2)
 
 @Composable
-fun ChatPhoto(graph: AppGraph, source: PhotoSource, modifier: Modifier, fit: Boolean = false) {
+fun ChatPhoto(
+    graph: AppGraph,
+    source: PhotoSource,
+    modifier: Modifier,
+    fit: Boolean = false,
+    maxDimension: Int = 1200,
+    fallback: (@Composable BoxScope.() -> Unit)? = null,
+) {
     val resolver = LocalContext.current.contentResolver
     var bitmap by remember(source) { mutableStateOf<ImageBitmap?>(null) }
     var failed by remember(source) { mutableStateOf(false) }
@@ -54,7 +61,10 @@ fun ChatPhoto(graph: AppGraph, source: PhotoSource, modifier: Modifier, fit: Boo
                     if (Build.VERSION.SDK_INT >= 28) {
                         ImageDecoder.decodeBitmap(ImageDecoder.createSource(ByteBuffer.wrap(bytes))) { decoder, info, _
                                 ->
-                                val scale = (maxOf(info.size.width, info.size.height) / 1200f).coerceAtLeast(1f)
+                                val scale =
+                                    (maxOf(info.size.width, info.size.height) / maxDimension.toFloat()).coerceAtLeast(
+                                        1f
+                                    )
                                 decoder.setTargetSize(
                                     (info.size.width / scale).toInt().coerceAtLeast(1),
                                     (info.size.height / scale).toInt().coerceAtLeast(1),
@@ -67,7 +77,7 @@ fun ChatPhoto(graph: AppGraph, source: PhotoSource, modifier: Modifier, fit: Boo
                         BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
                         options.inJustDecodeBounds = false
                         options.inSampleSize = 1
-                        while (maxOf(options.outWidth, options.outHeight) / options.inSampleSize > 1200) options
+                        while (maxOf(options.outWidth, options.outHeight) / options.inSampleSize > maxDimension) options
                             .inSampleSize *= 2
                         checkNotNull(BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)).asImageBitmap()
                     }
@@ -88,7 +98,8 @@ fun ChatPhoto(graph: AppGraph, source: PhotoSource, modifier: Modifier, fit: Boo
                 .then(if (failed) Modifier.clickable { retry++ } else Modifier),
             contentAlignment = Alignment.Center,
         ) {
-            if (failed)
+            if (fallback != null) fallback()
+            else if (failed)
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(Icons.Outlined.BrokenImage, "Фото недоступно")
                     Text("Повторить", style = MaterialTheme.typography.labelSmall)

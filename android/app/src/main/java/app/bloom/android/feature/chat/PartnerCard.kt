@@ -33,10 +33,16 @@ fun activityLabel(profile: Profile): String {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PartnerCard(profile: Profile, interests: List<String>, dismiss: () -> Unit, openProfile: () -> Unit) {
+fun PartnerCard(
+    profile: Profile,
+    interests: List<String>,
+    dismiss: () -> Unit,
+    avatar: @Composable () -> Unit = { PersonAvatar(profile.nickname, size = 72.dp) },
+    openProfile: () -> Unit,
+) {
     ModalBottomSheet(onDismissRequest = dismiss) {
         Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            PersonAvatar(profile.nickname, size = 72.dp)
+            avatar()
             Text(
                 profile.nickname + (profile.displayedAge()?.let { ", $it" } ?: ""),
                 style = MaterialTheme.typography.headlineMedium,
