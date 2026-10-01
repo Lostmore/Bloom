@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"bloom.local/chat/internal/delivery/websocket"
 	"bloom.local/chat/internal/domain"
 	"bloom.local/chat/internal/service"
 	"github.com/google/uuid"
@@ -65,14 +66,16 @@ func TestRoomHandler_CreateRoom(t *testing.T) {
 	svc := service.NewMessageService(mockMsgRepo, mochRoomRepo)
 
 	// Create request with body containing only user2_id
-	req, _ := http.NewRequest(http.MethodPost, "/api/rooms", bytes.NewBufferString(`{"user2_id": "00000000-0000-0000-0000-000000000002"}`))
+	req, _ := http.NewRequest(http.MethodPost, "/api/conversations", bytes.NewBufferString(`{"user2_id": "00000000-0000-0000-0000-000000000002"}`))
 
 	// Inject user_id into context as AuthMiddleware would do
 	ctx := context.WithValue(req.Context(), UserIDKey, u1)
 	req = req.WithContext(ctx)
 
 	rr := httptest.NewRecorder()
-	handler := NewRoomHandler(svc)
+	hub := websocket.NewHub(svc)
+	go hub.Run()
+	handler := NewRoomHandler(svc, hub)
 	handler.CreateRoom(rr, req)
 
 	var createdRoom domain.Room
@@ -97,7 +100,8 @@ func TestRoomHandler_GetUserRooms(t *testing.T) {
 	req = req.WithContext(ctx)
 
 	rr := httptest.NewRecorder()
-	handler := NewRoomHandler(svc)
+	hub := websocket.NewHub(svc)
+	handler := NewRoomHandler(svc, hub)
 	handler.GetUserRooms(rr, req)
 
 	var rooms []domain.Room
@@ -105,4 +109,28 @@ func TestRoomHandler_GetUserRooms(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, rr.Code)
 	require.Len(t, rooms, 0)
+}
+
+func TestRoomHandler_GetRoomHistory(t *testing.T) {
+	mockMsgRepo := &MockMessageRepo{}
+	mochRoomRepo := &MockRoomRepo{}
+	svc := service.NewMessageService(mockMsgRepo, mochRoomRepo)
+
+	req, _ := http.NewRequest(http.MethodGet, "/api/rooms/1/history", nil)
+	req.SetPathValue("id", "1")
+
+	// Inject user_id into context
+	ctx := context.WithValue(req.Context(), UserIDKey, u1)
+	req = req.WithContext(ctx)
+
+	rr := httptest.NewRecorder()
+	hub := websocket.NewHub(svc)
+	handler := NewRoomHandler(svc, hub)
+	handler.GetRoomHistory(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+	var msgs []*domain.Message
+	err := json.NewDecoder(rr.Body).Decode(&msgs)
+	require.NoError(t, err)
+	require.Len(t, msgs, 0)
 }
