@@ -29,6 +29,12 @@ type PresencePayload struct {
 	Status string    `json:"status"`
 }
 
+type MessageActionPayload struct {
+	MessageID int64  `json:"message_id"`
+	RoomID    int64  `json:"room_id"`
+	Content   string `json:"content,omitempty"`
+}
+
 type BroadcastMessage struct {
 	Client  *Client
 	Message *WSMessage
@@ -107,6 +113,69 @@ func (c *Client) ReadPump() {
 					Payload: json.RawMessage(typingBytes),
 				},
 			}
+		case "edit_message":
+			var action MessageActionPayload
+			err = json.Unmarshal(req.Payload, &action)
+			if err != nil {
+				continue
+			}
+			err = c.Hub.Service.EditMessage(context.Background(), action.MessageID, action.Content, c.UserID)
+			if err != nil {
+				c.Send <- &WSMessage{
+					Type:  "error",
+					Error: err.Error(),
+				}
+				continue
+			}
+			c.Hub.Broadcast <- &BroadcastMessage{
+				Client: c,
+				Message: &WSMessage{
+					Type:    "edit_message",
+					Payload: json.RawMessage(req.Payload),
+				},
+			}
+		case "delete_message":
+			var action MessageActionPayload
+			err = json.Unmarshal(req.Payload, &action)
+			if err != nil {
+				continue
+			}
+			err = c.Hub.Service.DeleteMessage(context.Background(), action.MessageID, c.UserID)
+			if err != nil {
+				c.Send <- &WSMessage{
+					Type:  "error",
+					Error: err.Error(),
+				}
+				continue
+			}
+			c.Hub.Broadcast <- &BroadcastMessage{
+				Client: c,
+				Message: &WSMessage{
+					Type:    "delete_message",
+					Payload: json.RawMessage(req.Payload),
+				},
+			}
+		case "mark_as_read":
+			var action MessageActionPayload
+			err = json.Unmarshal(req.Payload, &action)
+			if err != nil {
+				continue
+			}
+			err = c.Hub.Service.MarkAsRead(context.Background(), action.MessageID, c.UserID)
+			if err != nil {
+				c.Send <- &WSMessage{
+					Type:  "error",
+					Error: err.Error(),
+				}
+				continue
+			}
+			c.Hub.Broadcast <- &BroadcastMessage{
+				Client: c,
+				Message: &WSMessage{
+					Type:    "mark_as_read",
+					Payload: json.RawMessage(req.Payload),
+				},
+			}
 		}
 	}
 }
@@ -136,27 +205,22 @@ func (h *Hub) Run() {
 	for {
 		select {
 		case client := <-h.Register:
-			// 1. Фиксируем, первое ли это подключение
 			isFirstConnection := len(h.Users[client.UserID]) == 0
 			if isFirstConnection {
 				h.Users[client.UserID] = make(map[*Client]bool)
 			}
 			h.Users[client.UserID][client] = true
-			// 2. Обрабатываем каждую комнату клиента
 			for _, roomID := range client.RoomsID {
 				if _, ok := h.Rooms[roomID]; !ok {
 					h.Rooms[roomID] = make(map[*Client]bool)
 				}
 				h.Rooms[roomID][client] = true
-				// 🎯 ОТВЕТ НА ТВОЙ ВОПРОС:
-				// Сразу сообщаем нашему НОВОМУ клиенту обо всех собеседниках, кто УЖЕ онлайн в этой комнате
 				for otherClient := range h.Rooms[roomID] {
 					if otherClient.UserID != client.UserID {
 						payload := fmt.Sprintf(`{"room_id":%d,"user_id":"%s","status":"online"}`, roomID, otherClient.UserID)
 						client.Send <- &WSMessage{Type: "presence", Payload: json.RawMessage(payload)}
 					}
 				}
-				// Если это первое подключение юзера — оповещаем всех остальных в комнате, что он вошел
 				if isFirstConnection {
 					payload := fmt.Sprintf(`{"room_id":%d,"user_id":"%s","status":"online"}`, roomID, client.UserID)
 					msg := &WSMessage{Type: "presence", Payload: json.RawMessage(payload)}

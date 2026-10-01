@@ -243,17 +243,26 @@
 
                         // Рисуем сообщение только если мы сейчас сидим в этой комнате
                         if (data.room_id === currentRoomId) {
-                            const sender = data.sender_id == currentUserId ? "Вы" : "Собеседник";
-                            let urls = [];
-                            if (data.attachments && data.attachments.length > 0) {
-                                urls = data.attachments.map(att => att.url);
-                            }
-                            printMsg(sender, data.content, "", urls);
+                            printMsg(data, "");
 
                             // Сбрасываем индикатор "печатает"
                             document.getElementById("typingIndicator").innerText = "";
+
+                            // Автоматически помечаем как прочитанное, если мы получатель
+                            if (data.sender_id !== currentUserId) {
+                                ws.send(JSON.stringify({
+                                    type: "mark_as_read",
+                                    payload: { message_id: data.id, room_id: currentRoomId }
+                                }));
+                            }
                         } else {
                             console.log("Новое сообщение в другой комнате:", data.room_id);
+                        }
+                    } else if (wsMsg.type === "edit_message" || wsMsg.type === "delete_message" || wsMsg.type === "mark_as_read") {
+                        if (wsMsg.payload.room_id === currentRoomId) {
+                            // Простой хак для тестового клиента: просто перезагружаем історію чата,
+                            // чтобы отобразить все новые статусы (прочитано/изменено/удалено).
+                            connectToRoom(currentRoomId, currentOtherUserId);
                         }
                     }
 
@@ -379,15 +388,18 @@
                     const msgs = await res.json();
                     if (msgs && msgs.length > 0) {
                         msgs.forEach(data => {
-                            const sender = data.sender_id == currentUserId ? "Вы" : "Собеседник";
-                            let urls = [];
-                            if (data.attachments && data.attachments.length > 0) {
-                                urls = data.attachments.map(att => att.url);
+                            printMsg(data, "");
+
+                            // Если мы зашли и видим непрочитанные сообщения собеседника — помечаем их
+                            if (data.sender_id !== currentUserId && !data.read_at) {
+                                ws.send(JSON.stringify({
+                                    type: "mark_as_read",
+                                    payload: { message_id: data.id, room_id: currentRoomId }
+                                }));
                             }
-                            printMsg(sender, data.content, "", urls);
                         });
                     } else {
-                        printMsg("Система", "Сообщений пока нет. Напишите первым!", "system");
+                        printMsg({ sender_id: "system", content: "Сообщений пока нет. Напишите первым!" }, "system");
                     }
                 } else {
                     console.error("Ошибка HTTP:", res.status);
@@ -536,20 +548,48 @@
             } finally { button.disabled = false; }
         }
 
-        function printMsg(sender, text, className, attachments) {
+        function printMsg(data, className) {
             const chatDiv = document.getElementById("chat");
             const div = document.createElement("div");
+            if (data.id) div.id = "msg-" + data.id;
             div.className = className === "system" ? "message system" : "message";
+
+            const isMe = data.sender_id === currentUserId;
+            const sender = className === "system" ? "Система" : (isMe ? "Вы" : "Собеседник");
+
             const author = document.createElement("b");
             author.textContent = `${sender}: `;
             div.appendChild(author);
-            div.appendChild(document.createTextNode(typeof text === "string" ? text : ""));
 
-            if (Array.isArray(attachments) && attachments.length > 0) {
+            if (data.deleted_at) {
+                div.appendChild(document.createTextNode("[Сообщение удалено]"));
+                chatDiv.appendChild(div);
+                chatDiv.scrollTop = chatDiv.scrollHeight;
+                return;
+            }
+
+            const textNode = document.createTextNode((typeof data.content === "string" ? data.content : "") + " ");
+            div.appendChild(textNode);
+
+            if (data.edited_at) {
+                const editedSpan = document.createElement("small");
+                editedSpan.style.color = "gray";
+                editedSpan.textContent = "[Изменено] ";
+                div.appendChild(editedSpan);
+            }
+
+            if (isMe && data.read_at) {
+                const readSpan = document.createElement("small");
+                readSpan.style.color = "green";
+                readSpan.textContent = "✓✓ ";
+                div.appendChild(readSpan);
+            }
+
+            if (Array.isArray(data.attachments) && data.attachments.length > 0) {
                 const list = document.createElement("ul");
-                attachments.forEach(value => {
+                data.attachments.forEach(att => {
                     const item = document.createElement("li");
-                    const url = safeMediaUrl(value);
+                    const url = safeMediaUrl(att.url);
                     if (url) {
                         const button = document.createElement("button");
                         button.textContent = "Скачать файл (без предпросмотра)";
@@ -562,6 +602,28 @@
                 });
                 div.appendChild(list);
             }
+
+            if (isMe && !className) {
+                const editBtn = document.createElement("button");
+                editBtn.textContent = "✎";
+                editBtn.style.marginLeft = "10px";
+                editBtn.onclick = () => {
+                    const newText = prompt("Редактировать сообщение:", data.content);
+                    if (newText !== null && newText.trim() !== "") {
+                        ws.send(JSON.stringify({ type: "edit_message", payload: { message_id: data.id, room_id: currentRoomId, content: newText } }));
+                    }
+                };
+                const delBtn = document.createElement("button");
+                delBtn.textContent = "🗑";
+                delBtn.onclick = () => {
+                    if (confirm("Удалить сообщение?")) {
+                        ws.send(JSON.stringify({ type: "delete_message", payload: { message_id: data.id, room_id: currentRoomId } }));
+                    }
+                };
+                div.appendChild(editBtn);
+                div.appendChild(delBtn);
+            }
+
             chatDiv.appendChild(div);
             chatDiv.scrollTop = chatDiv.scrollHeight;
         }
