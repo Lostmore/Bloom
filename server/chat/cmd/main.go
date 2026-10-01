@@ -78,7 +78,7 @@ func main() {
 	go hub.Run()
 
 	roomHandler := httpDelivery.NewRoomHandler(svc, hub)
-
+	messageHandler := httpDelivery.NewMessageHandler(svc)
 	roomsLogic := func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPost {
 			roomHandler.CreateRoom(w, r)
@@ -88,6 +88,7 @@ func main() {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
 	}
+	http.HandleFunc("GET /conversations/search", httpDelivery.AuthMiddleware(validator, messageHandler.SearchMessages))
 	http.HandleFunc("/api/conversations", httpDelivery.AuthMiddleware(validator, roomsLogic))
 	http.HandleFunc("GET /conversations/{id}/messages", httpDelivery.AuthMiddleware(validator, roomHandler.GetRoomHistory))
 	http.HandleFunc("GET /openapi.json", docs.Handler)
