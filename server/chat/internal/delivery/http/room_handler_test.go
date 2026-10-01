@@ -37,6 +37,15 @@ func (m *MockMessageRepo) Save(ctx context.Context, msg *domain.Message) error {
 func (m *MockMessageRepo) GetByRoomID(ctx context.Context, roomID int64) ([]*domain.Message, error) {
 	return nil, nil
 }
+func (m *MockMessageRepo) MarkAsRead(ctx context.Context, messageID int64, readAt time.Time, userID uuid.UUID) error {
+	return nil
+}
+func (m *MockMessageRepo) UpdateContent(ctx context.Context, messageID int64, newContent string, editedAt time.Time, userID uuid.UUID) error {
+	return nil
+}
+func (m *MockMessageRepo) SoftDelete(ctx context.Context, messageID int64, deletedAt time.Time, userID uuid.UUID) error {
+	return nil
+}
 func (m *MockRoomRepo) CreateRoom(ctx context.Context, user1ID, user2ID uuid.UUID) (*domain.Room, error) {
 	room := &domain.Room{
 		ID:        1,
