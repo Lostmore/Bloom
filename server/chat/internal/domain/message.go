@@ -24,6 +24,9 @@ type Message struct {
 	Content     string       `json:"content"`
 	Attachments []Attachment `json:"attachments,omitempty"`
 	CreatedAt   time.Time    `json:"created_at"`
+	EditedAt    *time.Time   `json:"edited_at,omitempty"`
+	DeletedAt   *time.Time   `json:"deleted_at,omitempty"`
+	ReadAt      *time.Time   `json:"read_at,omitempty"`
 }
 
 // MessageSavedEvent — событие, которое мы будем отправлять в брокер (Kafka)
@@ -37,6 +40,9 @@ type MessageSavedEvent struct {
 type MessageRepository interface {
 	Save(ctx context.Context, msg *Message) error
 	GetByRoomID(ctx context.Context, roomID int64) ([]*Message, error)
+	MarkAsRead(ctx context.Context, messageID int64, readAt time.Time, userID uuid.UUID) error
+	UpdateContent(ctx context.Context, messageID int64, newContent string, editedAt time.Time, userID uuid.UUID) error
+	SoftDelete(ctx context.Context, messageID int64, deletedAt time.Time, userID uuid.UUID) error
 }
 
 type MessageEventProducer interface {
