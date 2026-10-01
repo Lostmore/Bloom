@@ -62,10 +62,18 @@ func (h *RoomHandler) CreateRoom(w http.ResponseWriter, r *http.Request) {
 	}
 	h.Hub.JoinRoom <- &websocket.JoinRoomRequest{UserID: userID, RoomID: room.ID}
 	h.Hub.JoinRoom <- &websocket.JoinRoomRequest{UserID: req.User2ID, RoomID: room.ID}
-	h.Hub.Broadcast <- &domain.Message{
+	sysMsg := &domain.Message{
 		RoomID:   room.ID,
 		SenderID: userID,
 		Content:  "Чат создан",
+	}
+	sysMsgBytes, _ := json.Marshal(sysMsg)
+	h.Hub.Broadcast <- &websocket.BroadcastMessage{
+		Client: nil,
+		Message: &websocket.WSMessage{
+			Type:    "new_message",
+			Payload: json.RawMessage(sysMsgBytes),
+		},
 	}
 	w.WriteHeader(http.StatusCreated)
 	if err := json.NewEncoder(w).Encode(room); err != nil {

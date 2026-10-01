@@ -5,7 +5,6 @@ import (
 	"log"
 	"net/http"
 
-	"bloom.local/chat/internal/domain"
 	"bloom.local/chat/internal/pkg/auth"
 	"github.com/gorilla/websocket"
 )
@@ -50,7 +49,7 @@ func ServeWS(hub *Hub, validator auth.TokenValidator, w http.ResponseWriter, r *
 		Conn:    conn,
 		RoomsID: roomIDs,
 		UserID:  userID,
-		Send:    make(chan *domain.Message, 256),
+		Send:    make(chan *WSMessage, 256),
 	}
 	client.Hub.Register <- client
 	go client.WritePump()
