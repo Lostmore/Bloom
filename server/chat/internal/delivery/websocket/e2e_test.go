@@ -2,6 +2,7 @@ package websocket
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -130,12 +131,21 @@ func TestE2EChat(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 
 	msgContent := "hello from e2e test"
-	err = ws1.WriteJSON(map[string]interface{}{"content": msgContent, "room_id": room.ID})
+	payloadBytes, _ := json.Marshal(map[string]interface{}{"content": msgContent, "room_id": room.ID})
+	err = ws1.WriteJSON(WSMessage{
+		Type:    "new_message",
+		Payload: payloadBytes,
+	})
 	require.NoError(t, err)
 
 	// User 10 receives broadcast
+	var wsMsg1 WSMessage
+	err = ws1.ReadJSON(&wsMsg1)
+	require.NoError(t, err)
+	require.Equal(t, "new_message", wsMsg1.Type)
+
 	var recMsg1 domain.Message
-	err = ws1.ReadJSON(&recMsg1)
+	err = json.Unmarshal(wsMsg1.Payload, &recMsg1)
 	require.NoError(t, err)
 	require.Equal(t, msgContent, recMsg1.Content)
 	require.Equal(t, u10, recMsg1.SenderID)
@@ -146,15 +156,20 @@ func TestE2EChat(t *testing.T) {
 	require.Equal(t, msgContent, history[0].Content)
 
 	// User 11 receives broadcast
+	var wsMsg2 WSMessage
+	err = ws2.ReadJSON(&wsMsg2)
+	require.NoError(t, err)
+	require.Equal(t, "new_message", wsMsg2.Type)
+
 	var recMsg2 domain.Message
-	err = ws2.ReadJSON(&recMsg2)
+	err = json.Unmarshal(wsMsg2.Payload, &recMsg2)
 	require.NoError(t, err)
 	require.Equal(t, msgContent, recMsg2.Content)
 	require.Equal(t, u10, recMsg2.SenderID)
 
 	// User 12 should not receive anything
 	ws3.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
-	var recMsg3 domain.Message
-	err = ws3.ReadJSON(&recMsg3)
+	var wsMsg3 WSMessage
+	err = ws3.ReadJSON(&wsMsg3)
 	require.Error(t, err, "expected read timeout since user 12 is not in the room")
 }

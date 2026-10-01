@@ -118,17 +118,20 @@
     </div>
 
     <div class="main">
-        <h2 id="chatTitle">Сначала войдите в систему</h2>
+        <h2 id="chatTitle" style="margin-bottom: 5px;">Сначала войдите в систему</h2>
+        <div id="onlineStatus" style="font-size: 0.85em; color: gray; margin-bottom: 10px; min-height: 15px;"></div>
         <div id="chat"></div>
 
         <div id="attachmentsPreview" style="margin-bottom: 5px; font-size: 0.9em; color: #555;"></div>
 
         <div style="display: flex; gap: 5px;">
-            <input type="text" id="msg" placeholder="Напишите сообщение..." disabled style="flex-grow: 1;">
+            <input type="text" id="msg" placeholder="Напишите сообщение..." disabled style="flex-grow: 1;"
+                oninput="sendTyping()">
             <input type="file" id="mediaFile" multiple style="display:none;" onchange="uploadMedia()">
             <button id="uploadBtn" onclick="document.getElementById('mediaFile').click()" disabled>📎 Файлы</button>
             <button id="sendBtn" onclick="sendMessage()" disabled>Отправить</button>
         </div>
+        <div id="typingIndicator" style="font-size: 0.8em; color: gray; margin-top: 5px; min-height: 15px;"></div>
     </div>
 
     <script>
@@ -142,9 +145,25 @@
 
         let ws;
         let currentRoomId = null;
+        let currentOtherUserId = null;
         let accessToken = null;
         let currentUserId = null;
         let uploadedFiles = []; // Массив ссылок
+        let userPresence = {}; // Кеш статусов: user_id -> "online" | "offline"
+
+        function updateOnlineStatus(status) {
+            const statusDiv = document.getElementById("onlineStatus");
+            if (status === "online") {
+                statusDiv.innerText = "🟢 В сети";
+                statusDiv.style.color = "green";
+            } else if (status === "offline") {
+                statusDiv.innerText = "⚪ Не в сети";
+                statusDiv.style.color = "gray";
+            } else {
+                statusDiv.innerText = "Статус неизвестен...";
+                statusDiv.style.color = "gray";
+            }
+        }
 
         // ----- АВТОРИЗАЦИЯ -----
         async function register() {
@@ -209,22 +228,58 @@
                 ws.onopen = () => console.log("Глобальный WS подключен");
 
                 ws.onmessage = (evt) => {
-                    const data = JSON.parse(evt.data);
+                    const wsMsg = JSON.parse(evt.data);
 
-                    // Обновляем список комнат при любом новом сообщении
-                    loadRooms();
+                    if (wsMsg.type === "error") {
+                        alert("Ошибка сервера: " + wsMsg.error);
+                        return;
+                    }
 
-                    // Рисуем сообщение только если мы сейчас сидим в этой комнате
-                    if (data.room_id === currentRoomId) {
-                        const sender = data.sender_id == currentUserId ? "Вы" : "Собеседник";
-                        let urls = [];
-                        if (data.attachments && data.attachments.length > 0) {
-                            urls = data.attachments.map(att => att.url);
+                    if (wsMsg.type === "new_message") {
+                        const data = wsMsg.payload;
+
+                        // Обновляем список комнат при любом новом сообщении
+                        loadRooms();
+
+                        // Рисуем сообщение только если мы сейчас сидим в этой комнате
+                        if (data.room_id === currentRoomId) {
+                            const sender = data.sender_id == currentUserId ? "Вы" : "Собеседник";
+                            let urls = [];
+                            if (data.attachments && data.attachments.length > 0) {
+                                urls = data.attachments.map(att => att.url);
+                            }
+                            printMsg(sender, data.content, "", urls);
+
+                            // Сбрасываем индикатор "печатает"
+                            document.getElementById("typingIndicator").innerText = "";
+                        } else {
+                            console.log("Новое сообщение в другой комнате:", data.room_id);
                         }
-                        printMsg(sender, data.content, "", urls);
-                    } else {
-                        console.log("Новое сообщение в другой комнате:", data.room_id);
-                        // Тут можно было бы обновить UI ленты чатов (показать уведомление)
+                    }
+
+                    if (wsMsg.type === "typing") {
+                        const data = wsMsg.payload;
+                        if (data.room_id === currentRoomId && data.user_id !== currentUserId) {
+                            const ind = document.getElementById("typingIndicator");
+                            if (data.is_typing) {
+                                ind.innerText = "Собеседник печатает...";
+                                clearTimeout(window.typingTimeout);
+                                window.typingTimeout = setTimeout(() => { ind.innerText = ""; }, 3000);
+                            } else {
+                                ind.innerText = "";
+                            }
+                        }
+                    }
+
+                    if (wsMsg.type === "presence") {
+                        const data = wsMsg.payload;
+                        // 1. Обязательно кэшируем статус в память браузера!
+                        userPresence[data.user_id] = data.status;
+
+                        // 2. Если сейчас открыт чат с этим собеседником — обновляем UI
+                        if (data.user_id === currentOtherUserId) {
+                            updateOnlineStatus(data.status);
+                        }
                     }
                 };
 
@@ -305,7 +360,12 @@
         // ----- WEBSOCKET -----
         async function connectToRoom(roomId, otherUserId) {
             currentRoomId = roomId;
+            currentOtherUserId = otherUserId;
             document.getElementById("chatTitle").innerText = `Чат с User (ID: ${otherUserId.substring(0, 8)}...)`;
+
+            // Подтягиваем актуальный статус из памяти
+            updateOnlineStatus(userPresence[otherUserId]);
+
             document.getElementById("chat").replaceChildren();
 
             // Загрузка истории сообщений (теперь через REST)
@@ -394,15 +454,31 @@
             renderAttachmentsPreview();
         }
 
+        let lastTypingTime = 0;
+        function sendTyping() {
+            if (!ws || ws.readyState !== WebSocket.OPEN || !currentRoomId) return;
+            const now = Date.now();
+            if (now - lastTypingTime < 2000) return; // шлём не чаще раз в 2 секунды
+            lastTypingTime = now;
+
+            ws.send(JSON.stringify({
+                type: "typing",
+                payload: { room_id: currentRoomId, is_typing: true }
+            }));
+        }
+
         // ----- СООБЩЕНИЯ -----
         function sendMessage() {
             const input = document.getElementById("msg");
             if (input.value.trim() === "" && uploadedFiles.length === 0) return;
 
             const msgObj = {
-                room_id: currentRoomId,
-                content: input.value,
-                attachments: uploadedFiles.map(url => ({ url: url }))
+                type: "new_message",
+                payload: {
+                    room_id: currentRoomId,
+                    content: input.value,
+                    attachments: uploadedFiles.map(url => ({ url: url }))
+                }
             };
 
             ws.send(JSON.stringify(msgObj));

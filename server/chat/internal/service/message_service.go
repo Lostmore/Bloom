@@ -26,7 +26,17 @@ func (s *MessageService) SendMessage(ctx context.Context, msg *domain.Message) e
 	if strings.TrimSpace(msg.Content) == "" && len(msg.Attachments) == 0 {
 		return errors.New("message cannot be empty")
 	}
-	err := s.msgRepo.Save(ctx, msg)
+	room, err := s.roomRepo.GetRoomByID(ctx, msg.RoomID)
+	if err != nil || room == nil {
+		return errors.New("room not found")
+	}
+	if room.User1ID != msg.SenderID && room.User2ID != msg.SenderID {
+		return errors.New("access denied: user does not belong to this room")
+	}
+	if !room.IsActive {
+		return errors.New("room is not active")
+	}
+	err = s.msgRepo.Save(ctx, msg)
 	if err != nil {
 		return err
 	}

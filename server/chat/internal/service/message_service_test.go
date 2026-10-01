@@ -64,9 +64,10 @@ func (m *MockRoomRepo) GetRoomByUsers(ctx context.Context, user1ID, user2ID uuid
 func (m *MockRoomRepo) GetRoomByID(ctx context.Context, roomID int64) (*domain.Room, error) {
 	if roomID == 1 {
 		return &domain.Room{
-			ID:      1,
-			User1ID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
-			User2ID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+			ID:       1,
+			User1ID:  uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+			User2ID:  uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+			IsActive: true,
 		}, nil
 	}
 	return nil, errors.New("room not found")
@@ -77,12 +78,16 @@ func TestMessageService_SendMessage(t *testing.T) {
 	mochRoomRepo := &MockRoomRepo{}
 	service := NewMessageService(mockMsgRepo, mochRoomRepo)
 	ctx := context.Background()
-	validMsg := &domain.Message{Content: "Hello World"}
+	validMsg := &domain.Message{
+		RoomID:   1,
+		SenderID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+		Content:  "Hello World",
+	}
 	err := service.SendMessage(ctx, validMsg)
 	require.NoError(t, err)
 	require.NotNil(t, mockMsgRepo.SavedMessage)
 	require.Equal(t, int64(999), mockMsgRepo.SavedMessage.ID)
-	invalidMsg := &domain.Message{Content: "   "}
+	invalidMsg := &domain.Message{RoomID: 1, SenderID: validMsg.SenderID, Content: "   "}
 	err = service.SendMessage(ctx, invalidMsg)
 	require.Error(t, err)
 	require.Equal(t, "message cannot be empty", err.Error())
