@@ -124,3 +124,53 @@ func TestMessageRepo_SaveWithAttachments(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, count)
 }
+
+func TestMessageRepo_Statuses(t *testing.T) {
+	pool, teardown := setupTestDB(t)
+	defer teardown()
+	repo := NewMessageRepo(pool)
+	ctx := context.Background()
+
+	u1 := uuid.MustParse("00000000-0000-0000-0000-000000000010")
+	u2 := uuid.MustParse("00000000-0000-0000-0000-000000000020")
+
+	_, err := pool.Exec(ctx, "INSERT INTO rooms (id, user1_id, user2_id) VALUES (1, $1, $2)", u1, u2)
+	require.NoError(t, err)
+
+	msg := &domain.Message{
+		RoomID:   1,
+		SenderID: u1,
+		Content:  "Initial",
+	}
+	err = repo.Save(ctx, msg)
+	require.NoError(t, err)
+
+	// 1. MarkAsRead by recipient
+	err = repo.MarkAsRead(ctx, msg.ID, time.Now(), u2)
+	require.NoError(t, err)
+
+	// MarkAsRead by sender should fail
+	err = repo.MarkAsRead(ctx, msg.ID, time.Now(), u1)
+	require.Error(t, err)
+
+	// 2. UpdateContent by sender
+	err = repo.UpdateContent(ctx, msg.ID, "Edited", time.Now(), u1)
+	require.NoError(t, err)
+
+	// UpdateContent by recipient should fail
+	err = repo.UpdateContent(ctx, msg.ID, "Hack", time.Now(), u2)
+	require.Error(t, err)
+
+	// 3. SoftDelete by sender
+	err = repo.SoftDelete(ctx, msg.ID, time.Now(), u1)
+	require.NoError(t, err)
+
+	// Verify DB state
+	msgs, err := repo.GetByRoomID(ctx, 1)
+	require.NoError(t, err)
+	require.Len(t, msgs, 1)
+	require.NotNil(t, msgs[0].ReadAt)
+	require.NotNil(t, msgs[0].EditedAt)
+	require.Equal(t, "Edited", msgs[0].Content)
+	require.NotNil(t, msgs[0].DeletedAt)
+}

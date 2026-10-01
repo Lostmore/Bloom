@@ -172,4 +172,62 @@ func TestE2EChat(t *testing.T) {
 	var wsMsg3 WSMessage
 	err = ws3.ReadJSON(&wsMsg3)
 	require.Error(t, err, "expected read timeout since user 12 is not in the room")
+
+	// Restore read deadline for future tests if needed
+	ws3.SetReadDeadline(time.Time{})
+
+	// --- 4. User 11 marks message as read ---
+	markPayload, _ := json.Marshal(map[string]interface{}{"message_id": recMsg2.ID, "room_id": room.ID})
+	err = ws2.WriteJSON(WSMessage{
+		Type:    "mark_as_read",
+		Payload: markPayload,
+	})
+	require.NoError(t, err)
+
+	// User 10 receives broadcast
+	var wsMsgRead1 WSMessage
+	err = ws1.ReadJSON(&wsMsgRead1)
+	require.NoError(t, err)
+	require.Equal(t, "mark_as_read", wsMsgRead1.Type)
+
+	var wsMsgRead2 WSMessage
+	err = ws2.ReadJSON(&wsMsgRead2)
+	require.NoError(t, err)
+	require.Equal(t, "mark_as_read", wsMsgRead2.Type)
+
+	// --- 5. User 10 edits message ---
+	editPayload, _ := json.Marshal(map[string]interface{}{"message_id": recMsg2.ID, "room_id": room.ID, "content": "edited text"})
+	err = ws1.WriteJSON(WSMessage{
+		Type:    "edit_message",
+		Payload: editPayload,
+	})
+	require.NoError(t, err)
+
+	var wsMsgEdit1 WSMessage
+	err = ws1.ReadJSON(&wsMsgEdit1)
+	require.NoError(t, err)
+	require.Equal(t, "edit_message", wsMsgEdit1.Type)
+
+	var wsMsgEdit2 WSMessage
+	err = ws2.ReadJSON(&wsMsgEdit2)
+	require.NoError(t, err)
+	require.Equal(t, "edit_message", wsMsgEdit2.Type)
+
+	// --- 6. User 10 deletes message ---
+	deletePayload, _ := json.Marshal(map[string]interface{}{"message_id": recMsg2.ID, "room_id": room.ID})
+	err = ws1.WriteJSON(WSMessage{
+		Type:    "delete_message",
+		Payload: deletePayload,
+	})
+	require.NoError(t, err)
+
+	var wsMsgDel1 WSMessage
+	err = ws1.ReadJSON(&wsMsgDel1)
+	require.NoError(t, err)
+	require.Equal(t, "delete_message", wsMsgDel1.Type)
+
+	var wsMsgDel2 WSMessage
+	err = ws2.ReadJSON(&wsMsgDel2)
+	require.NoError(t, err)
+	require.Equal(t, "delete_message", wsMsgDel2.Type)
 }
