@@ -35,6 +35,17 @@ public class ProfileRepository {
                 .param("id", id).query(this::map).optional();
     }
 
+    public List<UUID> feedCandidates(UUID viewer, UUID after, int limit) {
+        return jdbc.sql("""
+                SELECT id FROM profiles
+                WHERE id <> :viewer AND deleted = FALSE
+                  AND privacy ->> 'discoverable' = 'true'
+                  AND (CAST(:after AS uuid) IS NULL OR id > CAST(:after AS uuid))
+                ORDER BY id LIMIT :limit
+                """).param("viewer", viewer).param("after", after, java.sql.Types.OTHER)
+                .param("limit", limit).query(UUID.class).list();
+    }
+
     public Optional<Profile> lock(UUID id) {
         return jdbc.sql("SELECT * FROM profiles WHERE id = :id FOR UPDATE")
                 .param("id", id).query(this::map).optional();

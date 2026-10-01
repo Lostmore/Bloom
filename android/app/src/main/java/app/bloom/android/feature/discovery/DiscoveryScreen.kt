@@ -15,12 +15,17 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import app.bloom.android.AppGraph
+import app.bloom.android.BuildConfig
 import app.bloom.android.core.model.Profile
 import app.bloom.android.core.network.userMessage
 import app.bloom.android.core.ui.*
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -32,6 +37,12 @@ fun DiscoveryScreen(
     setMode: (String?) -> Unit = {},
 ) {
     var people by remember { mutableStateOf<List<Profile>>(emptyList()) }
+    var demo by rememberSaveable { mutableStateOf(false) }
+    var demoIndex by rememberSaveable { mutableIntStateOf(0) }
+    var demoDetails by remember { mutableStateOf(false) }
+    var cursor by remember { mutableStateOf<String?>(null) }
+    var nextCursor by remember { mutableStateOf<String?>(null) }
+    val seen = remember { mutableSetOf<String>() }
     var loading by remember { mutableStateOf(true) }
     var unavailable by remember { mutableStateOf(false) }
     var refresh by remember { mutableIntStateOf(0) }
@@ -42,27 +53,72 @@ fun DiscoveryScreen(
     var matchProfile by remember { mutableStateOf<String?>(null) }
     val keys = rememberSaveable { hashMapOf<String, String>() }
     val scope = rememberCoroutineScope()
-    LaunchedEffect(refresh) {
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(demo, lifecycle) {
+        if (!demo)
+            lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                while (true) {
+                    delay(30_000)
+                    if (people.isEmpty() && !loading && !busy) {
+                        cursor = null
+                        refresh++
+                    }
+                }
+            }
+    }
+    LaunchedEffect(refresh, mode, demo, cursor) {
+        if (demo) {
+            loading = false
+            error = null
+            unavailable = false
+            return@LaunchedEffect
+        }
         loading = true
+        error = null
         try {
-            val feed = graph.discovery.feed()
-            require(feed.items.orEmpty().all { !it.id.isNullOrBlank() && !it.nickname.isNullOrBlank() })
-            people = feed.items.orEmpty()
+            // Users supplies the basic feed while the Discovery service is still a stub.
+            var pageCursor = cursor
+            var pages = 0
+            do {
+                val feed = graph.users.feed(pageCursor)
+                require(feed.items.orEmpty().all { !it.id.isNullOrBlank() && !it.nickname.isNullOrBlank() })
+                people =
+                    feed.items.orEmpty().filter {
+                        it.id !in seen &&
+                            (mode == null ||
+                                mode == "ANY" ||
+                                mode in it.searchModes.orEmpty() ||
+                                "ANY" in it.searchModes.orEmpty())
+                    }
+                nextCursor = feed.nextCursor
+                require(nextCursor == null || nextCursor != pageCursor)
+                pageCursor = nextCursor
+                pages++
+            } while (people.isEmpty() && pageCursor != null && pages < 5)
             unavailable = false
         } catch (exception: CancellationException) {
             throw exception
-        } catch (_: Exception) {
+        } catch (exception: Exception) {
             unavailable = true
+            people = emptyList()
+            error = exception.userMessage()
         } finally {
             loading = false
         }
     }
-    val person = people.firstOrNull {
-        mode == null || mode == "ANY" || mode in it.searchModes.orEmpty() || "ANY" in it.searchModes.orEmpty()
-    }
+    val person =
+        if (demo) demoProfile(demoIndex, mode)
+        else
+            people.firstOrNull {
+                mode == null || mode == "ANY" || mode in it.searchModes.orEmpty() || "ANY" in it.searchModes.orEmpty()
+            }
     fun react(action: String) {
         val target = person ?: return
         if (busy) return
+        if (demo) {
+            demoIndex = (demoIndex + 1) % 120
+            return
+        }
         busy = true
         error = null
         scope.launch {
@@ -71,7 +127,9 @@ fun DiscoveryScreen(
                 val result =
                     graph.interactions.react(target.id, action, keys.getOrPut(request) { UUID.randomUUID().toString() })
                 keys.remove(request)
+                seen.add(target.id)
                 people = people.filterNot { it.id == target.id }
+                if (people.isEmpty() && nextCursor != null) cursor = nextCursor
                 if (result.matchId != null) matchProfile = target.id
             } catch (exception: CancellationException) {
                 throw exception
@@ -85,13 +143,57 @@ fun DiscoveryScreen(
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             BloomBrand(Modifier.weight(1f))
+            if (!demo)
+                IconButton(
+                    onClick = {
+                        cursor = null
+                        seen.clear()
+                        refresh++
+                    },
+                    enabled = !loading && !busy,
+                ) {
+                    Icon(Icons.Outlined.Refresh, "Обновить анкеты")
+                }
+            if (BuildConfig.DEBUG)
+                IconButton(
+                    onClick = {
+                        if (!busy) {
+                            demo = !demo
+                            cursor = null
+                            nextCursor = null
+                            people = emptyList()
+                            seen.clear()
+                            matchProfile = null
+                        }
+                    },
+                    enabled = !busy,
+                ) {
+                    Icon(
+                        Icons.Outlined.Science,
+                        if (demo) "Показать реальные анкеты" else "Тестовые анкеты",
+                        tint =
+                            if (demo) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             IconButton(onClick = { link = true }) { Icon(Icons.Outlined.Link, "Открыть анкету по ссылке") }
             IconButton(onClick = { filters = true }) { Icon(Icons.Outlined.Tune, "Цель знакомства") }
         }
+        if (demo)
+            Text(
+                "Демо · вымышленные анкеты · свайпы не отправляются",
+                Modifier.padding(vertical = 6.dp),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
         if (mode != null)
             InputChip(
                 true,
-                { setMode(null) },
+                {
+                    setMode(null)
+                    cursor = null
+                    nextCursor = null
+                    seen.clear()
+                },
                 label = { Text(GoalLabels[mode] ?: "Все") },
                 trailingIcon = { Icon(Icons.Outlined.Close, "Сбросить фильтр", Modifier.size(16.dp)) },
             )
@@ -124,7 +226,7 @@ fun DiscoveryScreen(
                                     )
                             },
                     ) {
-                        openProfile(person.id)
+                        if (demo) demoDetails = true else openProfile(person.id)
                     }
                 }
                 else ->
@@ -134,8 +236,15 @@ fun DiscoveryScreen(
                             "Подбор пока недоступен. Можно открыть анкету по ссылке или заглянуть чуть позже."
                         else "Попробуй другую цель знакомства или вернись позже.",
                         icon = Icons.Outlined.TravelExplore,
-                        action = "Обновить",
-                        onAction = { refresh++ },
+                        action = if (nextCursor != null && !unavailable) "Показать ещё" else "Обновить",
+                        onAction = {
+                            if (nextCursor != null && !unavailable) cursor = nextCursor
+                            else {
+                                cursor = null
+                                seen.clear()
+                                refresh++
+                            }
+                        },
                     )
             }
         }
@@ -154,6 +263,9 @@ fun DiscoveryScreen(
                     TextButton(
                         onClick = {
                             setMode(key)
+                            cursor = null
+                            nextCursor = null
+                            seen.clear()
                             filters = false
                         },
                         modifier = Modifier.fillMaxWidth(),
@@ -183,6 +295,15 @@ fun DiscoveryScreen(
             dismissButton = { TextButton(onClick = { matchProfile = null }) { Text("Продолжить") } },
         )
     }
+    if (demo && demoDetails && person != null)
+        AlertDialog(
+            onDismissRequest = { demoDetails = false },
+            title = { Text("${person.nickname}, ${person.age}") },
+            text = {
+                Text("${person.city}\n\n${person.bio}\n\nЭто вымышленная тестовая анкета. Чат и совпадения недоступны.")
+            },
+            confirmButton = { TextButton(onClick = { demoDetails = false }) { Text("Понятно") } },
+        )
 }
 
 @Composable

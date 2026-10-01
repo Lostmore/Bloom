@@ -4,6 +4,8 @@ import app.bloom.android.core.model.*
 import retrofit2.http.*
 
 interface UsersApi {
+    @GET("users/feed") suspend fun feed(@Query("cursor") cursor: String? = null): FeedPage
+
     @GET("users/me") suspend fun me(): Profile
 
     @PUT("users/me") suspend fun create(@Body request: CreateProfile): Profile
