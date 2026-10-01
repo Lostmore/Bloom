@@ -5,18 +5,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"strconv"
 	"testing"
 	"time"
 
-	"crypto/rand"
-	"crypto/rsa"
+	"fmt"
 
 	"bloom.local/chat/internal/domain"
-	"bloom.local/chat/internal/pkg/auth"
 	"bloom.local/chat/internal/repository/postgres"
 	"bloom.local/chat/internal/service"
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
@@ -40,7 +36,9 @@ func setupTestDB(t *testing.T) (*pgxpool.Pool, func()) {
 			wait.ForLog("database system is ready to accept connections").WithOccurrence(2).WithStartupTimeout(10*time.Second),
 		),
 	)
-	require.NoError(t, err)
+	if err != nil {
+		t.Skipf("Failed to start postgres container (is docker running?): %v", err)
+	}
 	connStr, err := pgContainer.ConnectionString(ctx, "sslmode=disable")
 	require.NoError(t, err)
 	m, err := migrate.New("file://../../../migrations", connStr)
@@ -64,6 +62,17 @@ var (
 	u12 = uuid.MustParse("00000000-0000-0000-0000-000000000012")
 )
 
+type MockTokenValidator struct {
+	ValidTokens map[string]uuid.UUID
+}
+
+func (m *MockTokenValidator) ValidateToken(tokenStr string) (uuid.UUID, error) {
+	if id, ok := m.ValidTokens[tokenStr]; ok {
+		return id, nil
+	}
+	return uuid.Nil, fmt.Errorf("invalid token")
+}
+
 func TestE2EChat(t *testing.T) {
 	pool, teardown := setupTestDB(t)
 	defer teardown()
@@ -74,10 +83,9 @@ func TestE2EChat(t *testing.T) {
 	hub := NewHub(svc)
 	go hub.Run()
 
-	// Generate RSA keys for testing
-	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
-	require.NoError(t, err)
-	validator := auth.NewRSATokenValidator(&privateKey.PublicKey)
+	validator := &MockTokenValidator{
+		ValidTokens: make(map[string]uuid.UUID),
+	}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ServeWS(hub, validator, w, r)
@@ -90,57 +98,63 @@ func TestE2EChat(t *testing.T) {
 
 	// Helper to generate token
 	generateToken := func(userID uuid.UUID) string {
-		token := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{"user_id": userID.String()})
-		tokenString, _ := token.SignedString(privateKey)
-		return tokenString
+		tokenStr := "token-" + userID.String()
+		validator.ValidTokens[tokenStr] = userID
+		return tokenStr
 	}
 
 	// 1. Connect User 10 (Allowed)
 	token10 := generateToken(u10)
 	u, _ := url.Parse(srv.URL)
 	u.Scheme = "ws"
-	u.RawQuery = "room_id=" + strconv.FormatInt(room.ID, 10) + "&token=" + token10
-	ws, _, err := gorilla.DefaultDialer.Dial(u.String(), nil)
+	u.RawQuery = "token=" + token10
+	ws1, _, err := gorilla.DefaultDialer.Dial(u.String(), nil)
 	require.NoError(t, err)
-	defer ws.Close()
+	defer ws1.Close()
 
-	time.Sleep(100 * time.Millisecond)
+	// 2. Connect User 11 (Allowed)
+	token11 := generateToken(u11)
+	u.RawQuery = "token=" + token11
+	ws2, _, err := gorilla.DefaultDialer.Dial(u.String(), nil)
+	require.NoError(t, err)
+	defer ws2.Close()
+
+	// 3. Connect User 12 (Forbidden - not in room)
+	token12 := generateToken(u12)
+	u.RawQuery = "token=" + token12
+	ws3, _, err := gorilla.DefaultDialer.Dial(u.String(), nil)
+	require.NoError(t, err, "dial should succeed because token is valid")
+	defer ws3.Close()
+
+	// Give the hub time to register clients
+	time.Sleep(200 * time.Millisecond)
 
 	msgContent := "hello from e2e test"
-	err = ws.WriteJSON(map[string]string{"content": msgContent})
+	err = ws1.WriteJSON(map[string]interface{}{"content": msgContent, "room_id": room.ID})
 	require.NoError(t, err)
 
-	var recMsg domain.Message
-	err = ws.ReadJSON(&recMsg)
+	// User 10 receives broadcast
+	var recMsg1 domain.Message
+	err = ws1.ReadJSON(&recMsg1)
 	require.NoError(t, err)
-	require.Equal(t, msgContent, recMsg.Content)
-	require.Equal(t, u10, recMsg.SenderID)
+	require.Equal(t, msgContent, recMsg1.Content)
+	require.Equal(t, u10, recMsg1.SenderID)
 
 	history, err := svc.GetRoomHistory(ctx, room.ID, u10)
 	require.NoError(t, err)
 	require.Len(t, history, 1)
 	require.Equal(t, msgContent, history[0].Content)
 
-	// 2. Connect User 11 (Allowed)
-	token11 := generateToken(u11)
-	u.RawQuery = "room_id=" + strconv.FormatInt(room.ID, 10) + "&token=" + token11
-	ws2, _, err := gorilla.DefaultDialer.Dial(u.String(), nil)
-	require.NoError(t, err)
-	defer ws2.Close()
-
+	// User 11 receives broadcast
 	var recMsg2 domain.Message
 	err = ws2.ReadJSON(&recMsg2)
 	require.NoError(t, err)
 	require.Equal(t, msgContent, recMsg2.Content)
 	require.Equal(t, u10, recMsg2.SenderID)
 
-	// 3. Connect User 12 (Forbidden - not in room)
-	token12 := generateToken(u12)
-	u.RawQuery = "room_id=" + strconv.FormatInt(room.ID, 10) + "&token=" + token12
-	ws3, _, err := gorilla.DefaultDialer.Dial(u.String(), nil)
-	require.NoError(t, err, "dial should succeed because token is valid")
-
-	// Server checks room access after upgrade and closes connection if denied
-	_, _, err = ws3.ReadMessage()
-	require.Error(t, err, "expected connection to be closed due to access denied")
+	// User 12 should not receive anything
+	ws3.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+	var recMsg3 domain.Message
+	err = ws3.ReadJSON(&recMsg3)
+	require.Error(t, err, "expected read timeout since user 12 is not in the room")
 }
