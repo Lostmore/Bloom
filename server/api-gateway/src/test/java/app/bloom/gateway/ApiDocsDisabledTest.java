@@ -13,7 +13,9 @@ class ApiDocsDisabledTest {
 
     @Test
     void disablingDocsRemovesTheUiAndCatalog() {
-        for (String path : new String[]{"/docs", "/docs/services", "/docs/openapi/identity", "/docs/index.html"}) {
+        for (String path : new String[]{"/docs", "/docs/services", "/docs/openapi/identity", "/docs/index.html",
+                "/docs/asyncapi", "/docs/asyncapi/index.html", "/docs/asyncapi/services", "/docs/asyncapi/specs/chat",
+                "/docs/asyncapi/vendor/asyncapi-3.2.1.js"}) {
             http.get().uri(path).exchange().expectStatus().isNotFound();
         }
         http.get().uri("/actuator/health/readiness").exchange().expectStatus().isOk();

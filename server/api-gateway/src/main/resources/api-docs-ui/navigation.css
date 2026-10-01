@@ -1,0 +1,12 @@
+body { margin: 0; }
+.bloom-docs-nav { display:flex; flex-wrap:wrap; align-items:center; gap:18px; padding:15px 24px; background:#171820; color:#f8f8fa; font:15px system-ui,sans-serif; }
+.bloom-docs-nav strong { margin-right:12px; font-size:19px; }
+.bloom-docs-nav a { color:#edb5d0; text-decoration:none; padding:7px 10px; border-radius:7px; }
+.bloom-docs-nav a[aria-current=page] { background:#34303e; color:white; }
+.bloom-docs-nav a:focus-visible, button:focus-visible, select:focus-visible { outline:2px solid #d97bae; outline-offset:3px; }
+.docs-toolbar, .docs-intro { margin:20px auto; max-width:1280px; padding:0 24px; font:15px/1.6 system-ui,sans-serif; }
+.docs-toolbar { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+.docs-toolbar select, .docs-toolbar button { font:inherit; padding:8px 12px; border:1px solid #bbb; border-radius:6px; background:white; }
+.docs-intro h1 { margin-bottom:8px; }
+#asyncapi-status { padding:12px; border-left:3px solid #c1568b; background:#fff2f8; }
+#asyncapi { max-width:1440px; margin:auto; }
