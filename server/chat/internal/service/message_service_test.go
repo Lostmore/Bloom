@@ -32,6 +32,15 @@ func (m *MockMessageRepo) Save(ctx context.Context, msg *domain.Message) error {
 func (m *MockMessageRepo) GetByRoomID(ctx context.Context, roomID int64) ([]*domain.Message, error) {
 	return nil, nil
 }
+func (m *MockMessageRepo) MarkAsRead(ctx context.Context, messageID int64, readAt time.Time, userID uuid.UUID) error {
+	return nil
+}
+func (m *MockMessageRepo) UpdateContent(ctx context.Context, messageID int64, newContent string, editedAt time.Time, userID uuid.UUID) error {
+	return nil
+}
+func (m *MockMessageRepo) SoftDelete(ctx context.Context, messageID int64, deletedAt time.Time, userID uuid.UUID) error {
+	return nil
+}
 func (m *MockRoomRepo) CreateRoom(ctx context.Context, user1ID, user2ID uuid.UUID) (*domain.Room, error) {
 	room := &domain.Room{
 		ID:        1,
@@ -64,9 +73,10 @@ func (m *MockRoomRepo) GetRoomByUsers(ctx context.Context, user1ID, user2ID uuid
 func (m *MockRoomRepo) GetRoomByID(ctx context.Context, roomID int64) (*domain.Room, error) {
 	if roomID == 1 {
 		return &domain.Room{
-			ID:      1,
-			User1ID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
-			User2ID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+			ID:       1,
+			User1ID:  uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+			User2ID:  uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+			IsActive: true,
 		}, nil
 	}
 	return nil, errors.New("room not found")
@@ -77,12 +87,16 @@ func TestMessageService_SendMessage(t *testing.T) {
 	mochRoomRepo := &MockRoomRepo{}
 	service := NewMessageService(mockMsgRepo, mochRoomRepo)
 	ctx := context.Background()
-	validMsg := &domain.Message{Content: "Hello World"}
+	validMsg := &domain.Message{
+		RoomID:   1,
+		SenderID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+		Content:  "Hello World",
+	}
 	err := service.SendMessage(ctx, validMsg)
 	require.NoError(t, err)
 	require.NotNil(t, mockMsgRepo.SavedMessage)
 	require.Equal(t, int64(999), mockMsgRepo.SavedMessage.ID)
-	invalidMsg := &domain.Message{Content: "   "}
+	invalidMsg := &domain.Message{RoomID: 1, SenderID: validMsg.SenderID, Content: "   "}
 	err = service.SendMessage(ctx, invalidMsg)
 	require.Error(t, err)
 	require.Equal(t, "message cannot be empty", err.Error())
@@ -147,4 +161,24 @@ func TestMessageService_GetRoomHistory(t *testing.T) {
 	_, err = service.GetRoomHistory(ctx, 99, u1)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "not found")
+}
+
+func TestMessageService_Statuses(t *testing.T) {
+	mockMsgRepo := &MockMessageRepo{}
+	mockRoomRepo := &MockRoomRepo{}
+	service := NewMessageService(mockMsgRepo, mockRoomRepo)
+	ctx := context.Background()
+
+	err := service.MarkAsRead(ctx, 1, u1)
+	require.NoError(t, err)
+
+	err = service.EditMessage(ctx, 1, "New Content", u1)
+	require.NoError(t, err)
+
+	err = service.EditMessage(ctx, 1, "   ", u1)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "cannot be empty")
+
+	err = service.DeleteMessage(ctx, 1, u1)
+	require.NoError(t, err)
 }

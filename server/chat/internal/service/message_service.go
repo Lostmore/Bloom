@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -26,7 +27,17 @@ func (s *MessageService) SendMessage(ctx context.Context, msg *domain.Message) e
 	if strings.TrimSpace(msg.Content) == "" && len(msg.Attachments) == 0 {
 		return errors.New("message cannot be empty")
 	}
-	err := s.msgRepo.Save(ctx, msg)
+	room, err := s.roomRepo.GetRoomByID(ctx, msg.RoomID)
+	if err != nil || room == nil {
+		return errors.New("room not found")
+	}
+	if room.User1ID != msg.SenderID && room.User2ID != msg.SenderID {
+		return errors.New("access denied: user does not belong to this room")
+	}
+	if !room.IsActive {
+		return errors.New("room is not active")
+	}
+	err = s.msgRepo.Save(ctx, msg)
 	if err != nil {
 		return err
 	}
@@ -63,4 +74,19 @@ func (s *MessageService) CreateRoom(ctx context.Context, user1ID, user2ID uuid.U
 // GetUserRooms получает список всех чатов для конкретного пользователя.
 func (s *MessageService) GetUserRooms(ctx context.Context, userID uuid.UUID) ([]domain.Room, error) {
 	return s.roomRepo.GetByUser(ctx, userID)
+}
+
+func (s *MessageService) MarkAsRead(ctx context.Context, messageID int64, userID uuid.UUID) error {
+	return s.msgRepo.MarkAsRead(ctx, messageID, time.Now(), userID)
+}
+
+func (s *MessageService) EditMessage(ctx context.Context, messageID int64, newContent string, userID uuid.UUID) error {
+	if strings.TrimSpace(newContent) == "" {
+		return errors.New("message cannot be empty")
+	}
+	return s.msgRepo.UpdateContent(ctx, messageID, newContent, time.Now(), userID)
+}
+
+func (s *MessageService) DeleteMessage(ctx context.Context, messageID int64, userID uuid.UUID) error {
+	return s.msgRepo.SoftDelete(ctx, messageID, time.Now(), userID)
 }

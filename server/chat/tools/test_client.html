@@ -118,17 +118,20 @@
     </div>
 
     <div class="main">
-        <h2 id="chatTitle">Сначала войдите в систему</h2>
+        <h2 id="chatTitle" style="margin-bottom: 5px;">Сначала войдите в систему</h2>
+        <div id="onlineStatus" style="font-size: 0.85em; color: gray; margin-bottom: 10px; min-height: 15px;"></div>
         <div id="chat"></div>
 
         <div id="attachmentsPreview" style="margin-bottom: 5px; font-size: 0.9em; color: #555;"></div>
 
         <div style="display: flex; gap: 5px;">
-            <input type="text" id="msg" placeholder="Напишите сообщение..." disabled style="flex-grow: 1;">
+            <input type="text" id="msg" placeholder="Напишите сообщение..." disabled style="flex-grow: 1;"
+                oninput="sendTyping()">
             <input type="file" id="mediaFile" multiple style="display:none;" onchange="uploadMedia()">
             <button id="uploadBtn" onclick="document.getElementById('mediaFile').click()" disabled>📎 Файлы</button>
             <button id="sendBtn" onclick="sendMessage()" disabled>Отправить</button>
         </div>
+        <div id="typingIndicator" style="font-size: 0.8em; color: gray; margin-top: 5px; min-height: 15px;"></div>
     </div>
 
     <script>
@@ -142,9 +145,25 @@
 
         let ws;
         let currentRoomId = null;
+        let currentOtherUserId = null;
         let accessToken = null;
         let currentUserId = null;
         let uploadedFiles = []; // Массив ссылок
+        let userPresence = {}; // Кеш статусов: user_id -> "online" | "offline"
+
+        function updateOnlineStatus(status) {
+            const statusDiv = document.getElementById("onlineStatus");
+            if (status === "online") {
+                statusDiv.innerText = "🟢 В сети";
+                statusDiv.style.color = "green";
+            } else if (status === "offline") {
+                statusDiv.innerText = "⚪ Не в сети";
+                statusDiv.style.color = "gray";
+            } else {
+                statusDiv.innerText = "Статус неизвестен...";
+                statusDiv.style.color = "gray";
+            }
+        }
 
         // ----- АВТОРИЗАЦИЯ -----
         async function register() {
@@ -209,22 +228,67 @@
                 ws.onopen = () => console.log("Глобальный WS подключен");
 
                 ws.onmessage = (evt) => {
-                    const data = JSON.parse(evt.data);
+                    const wsMsg = JSON.parse(evt.data);
 
-                    // Обновляем список комнат при любом новом сообщении
-                    loadRooms();
+                    if (wsMsg.type === "error") {
+                        alert("Ошибка сервера: " + wsMsg.error);
+                        return;
+                    }
 
-                    // Рисуем сообщение только если мы сейчас сидим в этой комнате
-                    if (data.room_id === currentRoomId) {
-                        const sender = data.sender_id == currentUserId ? "Вы" : "Собеседник";
-                        let urls = [];
-                        if (data.attachments && data.attachments.length > 0) {
-                            urls = data.attachments.map(att => att.url);
+                    if (wsMsg.type === "new_message") {
+                        const data = wsMsg.payload;
+
+                        // Обновляем список комнат при любом новом сообщении
+                        loadRooms();
+
+                        // Рисуем сообщение только если мы сейчас сидим в этой комнате
+                        if (data.room_id === currentRoomId) {
+                            printMsg(data, "");
+
+                            // Сбрасываем индикатор "печатает"
+                            document.getElementById("typingIndicator").innerText = "";
+
+                            // Автоматически помечаем как прочитанное, если мы получатель
+                            if (data.sender_id !== currentUserId) {
+                                ws.send(JSON.stringify({
+                                    type: "mark_as_read",
+                                    payload: { message_id: data.id, room_id: currentRoomId }
+                                }));
+                            }
+                        } else {
+                            console.log("Новое сообщение в другой комнате:", data.room_id);
                         }
-                        printMsg(sender, data.content, "", urls);
-                    } else {
-                        console.log("Новое сообщение в другой комнате:", data.room_id);
-                        // Тут можно было бы обновить UI ленты чатов (показать уведомление)
+                    } else if (wsMsg.type === "edit_message" || wsMsg.type === "delete_message" || wsMsg.type === "mark_as_read") {
+                        if (wsMsg.payload.room_id === currentRoomId) {
+                            // Простой хак для тестового клиента: просто перезагружаем історію чата,
+                            // чтобы отобразить все новые статусы (прочитано/изменено/удалено).
+                            connectToRoom(currentRoomId, currentOtherUserId);
+                        }
+                    }
+
+                    if (wsMsg.type === "typing") {
+                        const data = wsMsg.payload;
+                        if (data.room_id === currentRoomId && data.user_id !== currentUserId) {
+                            const ind = document.getElementById("typingIndicator");
+                            if (data.is_typing) {
+                                ind.innerText = "Собеседник печатает...";
+                                clearTimeout(window.typingTimeout);
+                                window.typingTimeout = setTimeout(() => { ind.innerText = ""; }, 3000);
+                            } else {
+                                ind.innerText = "";
+                            }
+                        }
+                    }
+
+                    if (wsMsg.type === "presence") {
+                        const data = wsMsg.payload;
+                        // 1. Обязательно кэшируем статус в память браузера!
+                        userPresence[data.user_id] = data.status;
+
+                        // 2. Если сейчас открыт чат с этим собеседником — обновляем UI
+                        if (data.user_id === currentOtherUserId) {
+                            updateOnlineStatus(data.status);
+                        }
                     }
                 };
 
@@ -305,7 +369,12 @@
         // ----- WEBSOCKET -----
         async function connectToRoom(roomId, otherUserId) {
             currentRoomId = roomId;
+            currentOtherUserId = otherUserId;
             document.getElementById("chatTitle").innerText = `Чат с User (ID: ${otherUserId.substring(0, 8)}...)`;
+
+            // Подтягиваем актуальный статус из памяти
+            updateOnlineStatus(userPresence[otherUserId]);
+
             document.getElementById("chat").replaceChildren();
 
             // Загрузка истории сообщений (теперь через REST)
@@ -319,15 +388,18 @@
                     const msgs = await res.json();
                     if (msgs && msgs.length > 0) {
                         msgs.forEach(data => {
-                            const sender = data.sender_id == currentUserId ? "Вы" : "Собеседник";
-                            let urls = [];
-                            if (data.attachments && data.attachments.length > 0) {
-                                urls = data.attachments.map(att => att.url);
+                            printMsg(data, "");
+
+                            // Если мы зашли и видим непрочитанные сообщения собеседника — помечаем их
+                            if (data.sender_id !== currentUserId && !data.read_at) {
+                                ws.send(JSON.stringify({
+                                    type: "mark_as_read",
+                                    payload: { message_id: data.id, room_id: currentRoomId }
+                                }));
                             }
-                            printMsg(sender, data.content, "", urls);
                         });
                     } else {
-                        printMsg("Система", "Сообщений пока нет. Напишите первым!", "system");
+                        printMsg({ sender_id: "system", content: "Сообщений пока нет. Напишите первым!" }, "system");
                     }
                 } else {
                     console.error("Ошибка HTTP:", res.status);
@@ -394,15 +466,31 @@
             renderAttachmentsPreview();
         }
 
+        let lastTypingTime = 0;
+        function sendTyping() {
+            if (!ws || ws.readyState !== WebSocket.OPEN || !currentRoomId) return;
+            const now = Date.now();
+            if (now - lastTypingTime < 2000) return; // шлём не чаще раз в 2 секунды
+            lastTypingTime = now;
+
+            ws.send(JSON.stringify({
+                type: "typing",
+                payload: { room_id: currentRoomId, is_typing: true }
+            }));
+        }
+
         // ----- СООБЩЕНИЯ -----
         function sendMessage() {
             const input = document.getElementById("msg");
             if (input.value.trim() === "" && uploadedFiles.length === 0) return;
 
             const msgObj = {
-                room_id: currentRoomId,
-                content: input.value,
-                attachments: uploadedFiles.map(url => ({ url: url }))
+                type: "new_message",
+                payload: {
+                    room_id: currentRoomId,
+                    content: input.value,
+                    attachments: uploadedFiles.map(url => ({ url: url }))
+                }
             };
 
             ws.send(JSON.stringify(msgObj));
@@ -460,20 +548,48 @@
             } finally { button.disabled = false; }
         }
 
-        function printMsg(sender, text, className, attachments) {
+        function printMsg(data, className) {
             const chatDiv = document.getElementById("chat");
             const div = document.createElement("div");
+            if (data.id) div.id = "msg-" + data.id;
             div.className = className === "system" ? "message system" : "message";
+
+            const isMe = data.sender_id === currentUserId;
+            const sender = className === "system" ? "Система" : (isMe ? "Вы" : "Собеседник");
+
             const author = document.createElement("b");
             author.textContent = `${sender}: `;
             div.appendChild(author);
-            div.appendChild(document.createTextNode(typeof text === "string" ? text : ""));
 
-            if (Array.isArray(attachments) && attachments.length > 0) {
+            if (data.deleted_at) {
+                div.appendChild(document.createTextNode("[Сообщение удалено]"));
+                chatDiv.appendChild(div);
+                chatDiv.scrollTop = chatDiv.scrollHeight;
+                return;
+            }
+
+            const textNode = document.createTextNode((typeof data.content === "string" ? data.content : "") + " ");
+            div.appendChild(textNode);
+
+            if (data.edited_at) {
+                const editedSpan = document.createElement("small");
+                editedSpan.style.color = "gray";
+                editedSpan.textContent = "[Изменено] ";
+                div.appendChild(editedSpan);
+            }
+
+            if (isMe && data.read_at) {
+                const readSpan = document.createElement("small");
+                readSpan.style.color = "green";
+                readSpan.textContent = "✓✓ ";
+                div.appendChild(readSpan);
+            }
+
+            if (Array.isArray(data.attachments) && data.attachments.length > 0) {
                 const list = document.createElement("ul");
-                attachments.forEach(value => {
+                data.attachments.forEach(att => {
                     const item = document.createElement("li");
-                    const url = safeMediaUrl(value);
+                    const url = safeMediaUrl(att.url);
                     if (url) {
                         const button = document.createElement("button");
                         button.textContent = "Скачать файл (без предпросмотра)";
@@ -486,6 +602,28 @@
                 });
                 div.appendChild(list);
             }
+
+            if (isMe && !className) {
+                const editBtn = document.createElement("button");
+                editBtn.textContent = "✎";
+                editBtn.style.marginLeft = "10px";
+                editBtn.onclick = () => {
+                    const newText = prompt("Редактировать сообщение:", data.content);
+                    if (newText !== null && newText.trim() !== "") {
+                        ws.send(JSON.stringify({ type: "edit_message", payload: { message_id: data.id, room_id: currentRoomId, content: newText } }));
+                    }
+                };
+                const delBtn = document.createElement("button");
+                delBtn.textContent = "🗑";
+                delBtn.onclick = () => {
+                    if (confirm("Удалить сообщение?")) {
+                        ws.send(JSON.stringify({ type: "delete_message", payload: { message_id: data.id, room_id: currentRoomId } }));
+                    }
+                };
+                div.appendChild(editBtn);
+                div.appendChild(delBtn);
+            }
+
             chatDiv.appendChild(div);
             chatDiv.scrollTop = chatDiv.scrollHeight;
         }
