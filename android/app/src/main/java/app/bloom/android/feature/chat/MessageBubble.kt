@@ -46,42 +46,37 @@ fun MessageBubble(
         deleting = false
         actionError = null
     }
-    if (details || editing || deleting)
+    LaunchedEffect(message.deletedAt) {
+        if (message.deletedAt != null) closeDialog()
+    }
+    if (details || deleting)
         AlertDialog(
             onDismissRequest = { closeDialog() },
-            title = {
-                Text(
-                    when {
-                        editing -> "Редактировать сообщение"
-                        deleting -> "Удалить сообщение?"
-                        else -> "О сообщении"
-                    }
-                )
-            },
+            title = { Text(if (deleting) "Удалить сообщение?" else "О сообщении") },
             text = {
                 Column {
-                    when {
-                        editing ->
-                            OutlinedTextField(
-                                replacement,
-                                { replacement = it },
-                                modifier = Modifier.fillMaxWidth().heightIn(max = 200.dp),
-                                label = { Text("Текст") },
-                            )
-                        deleting -> Text("Сообщение будет помечено удалённым для участников чата.")
-                        else -> {
-                            Text(
-                                if (readTime != null)
-                                    "Прочитано: " +
-                                        readTime
-                                            .atZoneSameInstant(ZoneId.systemDefault())
-                                            .format(DateTimeFormatter.ofPattern("dd.MM.yyyy, HH:mm"))
-                                else "Сохранено в чате. Подтверждение прочтения пока не получено."
-                            )
-                            if (own && message.deletedAt == null) {
-                                if (edit != null) TextButton(onClick = { editing = true }) { Text("Редактировать") }
-                                if (delete != null) TextButton(onClick = { deleting = true }) { Text("Удалить") }
-                            }
+                    if (deleting) Text("Сообщение будет помечено удалённым для участников чата.")
+                    else {
+                        Text(
+                            if (readTime != null)
+                                "Прочитано: " +
+                                    readTime
+                                        .atZoneSameInstant(ZoneId.systemDefault())
+                                        .format(DateTimeFormatter.ofPattern("dd.MM.yyyy, HH:mm"))
+                            else "Сохранено в чате. Подтверждение прочтения пока не получено."
+                        )
+                        if (own && message.deletedAt == null) {
+                            if (edit != null)
+                                TextButton(
+                                    onClick = {
+                                        replacement = message.content.orEmpty()
+                                        details = false
+                                        editing = true
+                                    }
+                                ) {
+                                    Text("Редактировать")
+                                }
+                            if (delete != null) TextButton(onClick = { deleting = true }) { Text("Удалить") }
                         }
                     }
                     actionError?.let { Text(it) }
@@ -89,28 +84,16 @@ fun MessageBubble(
             },
             confirmButton = {
                 TextButton(
-                    enabled = !editing || (replacement.isNotBlank() && edit != null),
                     onClick = {
-                        val sent =
-                            when {
-                                editing -> edit?.invoke(replacement) == true
-                                deleting -> delete?.invoke() == true
-                                else -> true
-                            }
-                        if (sent) closeDialog() else actionError = "Нет соединения. Попробуй ещё раз."
-                    },
+                        if (!deleting || delete?.invoke() == true) closeDialog()
+                        else actionError = "Нет соединения. Попробуй ещё раз."
+                    }
                 ) {
-                    Text(
-                        when {
-                            editing -> "Сохранить"
-                            deleting -> "Удалить"
-                            else -> "Понятно"
-                        }
-                    )
+                    Text(if (deleting) "Удалить" else "Понятно")
                 }
             },
             dismissButton = {
-                if (editing || deleting) TextButton(onClick = { closeDialog() }) { Text("Отмена") }
+                if (deleting) TextButton(onClick = { closeDialog() }) { Text("Отмена") }
                 else if (message.deletedAt == null)
                     TextButton(
                         onClick = {
@@ -129,7 +112,7 @@ fun MessageBubble(
     ) {
         Surface(
             Modifier.widthIn(max = 310.dp)
-                .combinedClickable(onClick = {}, onLongClick = { details = true })
+                .combinedClickable(enabled = !editing, onClick = {}, onLongClick = { details = true })
                 .pointerInput(message.id) {
                     awaitPointerEventScope {
                         while (true) {
@@ -149,7 +132,27 @@ fun MessageBubble(
             border = if (highlighted) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
         ) {
             Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                if (message.deletedAt != null) {
+                if (editing && own && message.deletedAt == null) {
+                    OutlinedTextField(
+                        replacement,
+                        { replacement = it },
+                        modifier = Modifier.fillMaxWidth().heightIn(max = 200.dp),
+                        label = { Text("Редактирование") },
+                    )
+                    actionError?.let { Text(it) }
+                    Row(Modifier.align(Alignment.End)) {
+                        TextButton(onClick = { closeDialog() }) { Text("Отмена") }
+                        TextButton(
+                            enabled = replacement.isNotBlank() && edit != null,
+                            onClick = {
+                                if (edit?.invoke(replacement) == true) closeDialog()
+                                else actionError = "Нет соединения. Текст сохранён здесь."
+                            },
+                        ) {
+                            Text("Сохранить")
+                        }
+                    }
+                } else if (message.deletedAt != null) {
                     Text("Сообщение удалено", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } else {
                     val photos =
