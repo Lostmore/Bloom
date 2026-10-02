@@ -49,6 +49,7 @@ type MessageRepository interface {
 	UpdateContent(ctx context.Context, messageID int64, newContent string, editedAt time.Time, userID uuid.UUID) error
 	SoftDelete(ctx context.Context, messageID int64, deletedAt time.Time, userID uuid.UUID) error
 	SearchByUser(ctx context.Context, userID uuid.UUID, query string, cursor string, limit int) (*MessagePage, error)
+	GetAround(ctx context.Context, roomID int64, aroundID int64, limit int) (*MessagePage, error)
 }
 
 type MessageEventProducer interface {

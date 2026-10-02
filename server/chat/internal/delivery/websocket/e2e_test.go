@@ -130,6 +130,18 @@ func TestE2EChat(t *testing.T) {
 	// Give the hub time to register clients
 	time.Sleep(200 * time.Millisecond)
 
+	// Helper to wait for a specific message type
+	readExpectedMessage := func(ws *gorilla.Conn, expectedType string) WSMessage {
+		for {
+			var msg WSMessage
+			err := ws.ReadJSON(&msg)
+			require.NoError(t, err)
+			if msg.Type == expectedType {
+				return msg
+			}
+		}
+	}
+
 	msgContent := "hello from e2e test"
 	payloadBytes, _ := json.Marshal(map[string]interface{}{"content": msgContent, "room_id": room.ID})
 	err = ws1.WriteJSON(WSMessage{
@@ -139,11 +151,7 @@ func TestE2EChat(t *testing.T) {
 	require.NoError(t, err)
 
 	// User 10 receives broadcast
-	var wsMsg1 WSMessage
-	err = ws1.ReadJSON(&wsMsg1)
-	require.NoError(t, err)
-	require.Equal(t, "new_message", wsMsg1.Type)
-
+	wsMsg1 := readExpectedMessage(ws1, "new_message")
 	var recMsg1 domain.Message
 	err = json.Unmarshal(wsMsg1.Payload, &recMsg1)
 	require.NoError(t, err)
@@ -156,11 +164,7 @@ func TestE2EChat(t *testing.T) {
 	require.Equal(t, msgContent, history[0].Content)
 
 	// User 11 receives broadcast
-	var wsMsg2 WSMessage
-	err = ws2.ReadJSON(&wsMsg2)
-	require.NoError(t, err)
-	require.Equal(t, "new_message", wsMsg2.Type)
-
+	wsMsg2 := readExpectedMessage(ws2, "new_message")
 	var recMsg2 domain.Message
 	err = json.Unmarshal(wsMsg2.Payload, &recMsg2)
 	require.NoError(t, err)
@@ -185,15 +189,9 @@ func TestE2EChat(t *testing.T) {
 	require.NoError(t, err)
 
 	// User 10 receives broadcast
-	var wsMsgRead1 WSMessage
-	err = ws1.ReadJSON(&wsMsgRead1)
-	require.NoError(t, err)
-	require.Equal(t, "mark_as_read", wsMsgRead1.Type)
+	_ = readExpectedMessage(ws1, "mark_as_read")
 
-	var wsMsgRead2 WSMessage
-	err = ws2.ReadJSON(&wsMsgRead2)
-	require.NoError(t, err)
-	require.Equal(t, "mark_as_read", wsMsgRead2.Type)
+	_ = readExpectedMessage(ws2, "mark_as_read")
 
 	// --- 5. User 10 edits message ---
 	editPayload, _ := json.Marshal(map[string]interface{}{"message_id": recMsg2.ID, "room_id": room.ID, "content": "edited text"})
@@ -203,15 +201,8 @@ func TestE2EChat(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	var wsMsgEdit1 WSMessage
-	err = ws1.ReadJSON(&wsMsgEdit1)
-	require.NoError(t, err)
-	require.Equal(t, "edit_message", wsMsgEdit1.Type)
-
-	var wsMsgEdit2 WSMessage
-	err = ws2.ReadJSON(&wsMsgEdit2)
-	require.NoError(t, err)
-	require.Equal(t, "edit_message", wsMsgEdit2.Type)
+	_ = readExpectedMessage(ws1, "edit_message")
+	_ = readExpectedMessage(ws2, "edit_message")
 
 	// --- 6. User 10 deletes message ---
 	deletePayload, _ := json.Marshal(map[string]interface{}{"message_id": recMsg2.ID, "room_id": room.ID})
@@ -221,13 +212,6 @@ func TestE2EChat(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	var wsMsgDel1 WSMessage
-	err = ws1.ReadJSON(&wsMsgDel1)
-	require.NoError(t, err)
-	require.Equal(t, "delete_message", wsMsgDel1.Type)
-
-	var wsMsgDel2 WSMessage
-	err = ws2.ReadJSON(&wsMsgDel2)
-	require.NoError(t, err)
-	require.Equal(t, "delete_message", wsMsgDel2.Type)
+	_ = readExpectedMessage(ws1, "delete_message")
+	_ = readExpectedMessage(ws2, "delete_message")
 }

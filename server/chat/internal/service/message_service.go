@@ -94,3 +94,14 @@ func (s *MessageService) DeleteMessage(ctx context.Context, messageID int64, use
 func (s *MessageService) SearchMessages(ctx context.Context, userID uuid.UUID, query string, cursor string, limit int) (*domain.MessagePage, error) {
 	return s.msgRepo.SearchByUser(ctx, userID, query, cursor, limit)
 }
+
+func (s *MessageService) GetMessageContext(ctx context.Context, roomID int64, aroundID int64, limit int, userID uuid.UUID) (*domain.MessagePage, error) {
+	room, err := s.roomRepo.GetRoomByID(ctx, roomID)
+	if err != nil || room == nil {
+		return nil, errors.New("room not found")
+	}
+	if room.User1ID != userID && room.User2ID != userID {
+		return nil, errors.New("access denied: user does not belong to this room")
+	}
+	return s.msgRepo.GetAround(ctx, roomID, aroundID, limit)
+}

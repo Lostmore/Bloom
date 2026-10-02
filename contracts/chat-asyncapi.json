@@ -3,8 +3,8 @@
   "x-bloom-guide": "chat-websocket-v1",
   "info": {
     "title": "Bloom Chat WebSocket",
-    "version": "1.0.0",
-    "description": "Контракт текущего Go Chat, проверенный по исходникам. Операции описаны со стороны сервера: receive — сервер получает данные от приложения, send — сервер отправляет их приложению.\n\n## Подключение фронтенда\n1. Получить accessToken через Identity в Swagger.\n2. Получить комнаты: GET /api/v1/conversations с Authorization: Bearer <accessToken>.\n3. Открыть ws://<адрес-gateway>/api/v1/ws?token=<accessToken> (для HTTPS использовать wss). Передавать только accessToken, без префикса Bearer. Служебный токен Identity клиенту не нужен. Не сохранять URL с токеном в логах.\n4. Одно соединение получает события всех комнат пользователя. room_id передаётся в отправляемом JSON, а не в URL подключения.\n5. Историю загружать отдельно: GET /api/v1/conversations/{id}/messages с Bearer-токеном. При переподключении повторно загрузить комнаты и историю, объединять сообщения по id.\n\n## Что ещё не реализовано\nВ просмотренном коде нет событий прочтения, набора текста, присутствия и структурированных ошибок WebSocket. Нет подтверждения с client_message_id или гарантированной доставки пропущенных событий. При ошибке сохранения текущий ReadPump всё ещё вызывает Broadcast: полученное событие нельзя считать гарантией сохранения в БД. Эти ограничения должны быть устранены в Chat; документация их не исправляет.\n\n## Минимальный пример браузера\n```javascript\nconst url = new URL('/api/v1/ws', window.location.origin);\nurl.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';\nurl.searchParams.set('token', accessToken);\nconst socket = new WebSocket(url);\nsocket.onopen = () => socket.send(JSON.stringify({ room_id: roomId, content: 'Привет!' }));\nsocket.onmessage = ({ data }) => {\n  const message = JSON.parse(data);\n  if (message.id === 0) { /* обновить список комнат; не добавлять в историю */ return; }\n  // Обновить переписку message.room_id, устраняя дубли по message.id.\n};\n```\nПосле обрыва соединения обновить токен при необходимости и переподключиться с задержкой. Не отправлять автоматически повторно неподтверждённое сообщение: сервер пока не поддерживает идемпотентный client_message_id.",
+    "version": "1.1.0",
+    "description": "Контракт обновленного Go Chat с использованием обертки type/payload. Операции описаны со стороны сервера: receive — сервер получает данные от приложения, send — сервер отправляет их приложению.\n\n## Подключение фронтенда\n1. Получить accessToken через Identity в Swagger.\n2. Получить комнаты: GET /api/v1/conversations с Authorization: Bearer <accessToken>.\n3. Открыть ws://<адрес-gateway>/api/v1/ws?token=<accessToken> (для HTTPS использовать wss). Передавать только accessToken, без префикса Bearer. Служебный токен Identity клиенту не нужен. Не сохранять URL с токеном в логах.\n4. Одно соединение получает события всех комнат пользователя. room_id передаётся в отправляемом JSON, а не в URL подключения.\n5. Историю загружать отдельно: GET /api/v1/conversations/{id}/messages с Bearer-токеном.\n\n## Обёртка WSMessage\nВсе сообщения оборачиваются в объект с полями `type`, `payload` (JSON) и опционально `error`. Например:\n```json\n{\n  \"type\": \"new_message\",\n  \"payload\": { \"room_id\": 15, \"content\": \"Привет!\" }\n}\n```",
     "license": { "name": "Proprietary" }
   },
   "defaultContentType": "application/json",
@@ -20,7 +20,7 @@
   "channels": {
     "chat": {
       "address": "/api/v1/ws",
-      "description": "Общее соединение пользователя. Chat определяет отправителя по токену и подписывает соединение на его комнаты. История при подключении не передаётся.",
+      "description": "Общее соединение пользователя. Chat определяет отправителя по токену и подписывает соединение на его комнаты.",
       "servers": [{ "$ref": "#/servers/gateway" }],
       "bindings": {
         "ws": {
@@ -34,30 +34,23 @@
         }
       },
       "messages": {
-        "sendMessage": { "$ref": "#/components/messages/SendMessage" },
-        "message": { "$ref": "#/components/messages/ChatMessage" },
-        "roomChanged": { "$ref": "#/components/messages/RoomChanged" }
+        "clientEvents": { "$ref": "#/components/messages/ClientEvents" },
+        "serverEvents": { "$ref": "#/components/messages/ServerEvents" }
       }
     }
   },
   "operations": {
-    "receiveMessage": {
+    "receiveFromClient": {
       "action": "receive",
-      "summary": "Приложение отправляет сообщение в Chat",
+      "summary": "Сервер получает события от клиента",
       "channel": { "$ref": "#/channels/chat" },
-      "messages": [{ "$ref": "#/channels/chat/messages/sendMessage" }]
+      "messages": [{ "$ref": "#/channels/chat/messages/clientEvents" }]
     },
-    "deliverMessage": {
+    "sendToClient": {
       "action": "send",
-      "summary": "Chat отправляет сообщение участникам, включая отправителя",
+      "summary": "Сервер отправляет события клиенту",
       "channel": { "$ref": "#/channels/chat" },
-      "messages": [{ "$ref": "#/channels/chat/messages/message" }]
-    },
-    "notifyRoomChanged": {
-      "action": "send",
-      "summary": "Chat сообщает об открытии комнаты через REST",
-      "channel": { "$ref": "#/channels/chat" },
-      "messages": [{ "$ref": "#/channels/chat/messages/roomChanged" }]
+      "messages": [{ "$ref": "#/channels/chat/messages/serverEvents" }]
     }
   },
   "components": {
@@ -67,7 +60,6 @@
     "schemas": {
       "Attachment": {
         "type": "object",
-        "description": "Текущий формат Go. Новый безопасный контракт вложений с mediaId пока не реализован. Не вставлять URL и содержимое в innerHTML.",
         "properties": {
           "id": { "type": "integer", "format": "int64" },
           "message_id": { "type": "integer", "format": "int64" },
@@ -80,44 +72,90 @@
         "type": "object",
         "required": ["id", "room_id", "sender_id", "content", "created_at"],
         "properties": {
-          "id": { "type": "integer", "format": "int64", "minimum": 0, "description": "Положительный ID для сообщения; 0 для уведомления о комнате. Пакет с id=0 не сохранять как сообщение." },
-          "room_id": { "type": "integer", "format": "int64", "description": "ID комнаты: определяет, какую переписку обновить." },
-          "sender_id": { "type": "string", "format": "uuid", "description": "ID автора. Сравни с ID текущего пользователя, чтобы отличить своё сообщение от входящего." },
-          "content": { "type": "string", "description": "Текст сообщения. Может быть пустым у сообщения с вложениями. Отображать как текст, не HTML." },
-          "attachments": { "type": "array", "description": "Вложения сообщения. Поле может отсутствовать; структуру элемента смотри в полной схеме Attachment.", "items": { "$ref": "#/components/schemas/Attachment" } },
-          "created_at": { "type": "string", "format": "date-time", "description": "Время сообщения с часовым поясом. У уведомления с id=0 здесь нулевое время Go, не показывай его пользователю." }
+          "id": { "type": "integer", "format": "int64", "minimum": 0 },
+          "room_id": { "type": "integer", "format": "int64" },
+          "sender_id": { "type": "string", "format": "uuid" },
+          "content": { "type": "string" },
+          "attachments": { "type": "array", "items": { "$ref": "#/components/schemas/Attachment" } },
+          "created_at": { "type": "string", "format": "date-time" },
+          "edited_at": { "type": "string", "format": "date-time" },
+          "deleted_at": { "type": "string", "format": "date-time" },
+          "read_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "MessageActionPayload": {
+        "type": "object",
+        "required": ["message_id", "room_id"],
+        "properties": {
+          "message_id": { "type": "integer", "format": "int64" },
+          "room_id": { "type": "integer", "format": "int64" },
+          "content": { "type": "string", "description": "Передается только при type = edit_message" }
+        }
+      },
+      "TypingPayload": {
+        "type": "object",
+        "required": ["room_id", "is_typing"],
+        "properties": {
+          "room_id": { "type": "integer", "format": "int64" },
+          "user_id": { "type": "string", "format": "uuid", "description": "Заполняется сервером, клиент не передает" },
+          "is_typing": { "type": "boolean" }
+        }
+      },
+      "PresencePayload": {
+        "type": "object",
+        "required": ["user_id", "status"],
+        "properties": {
+          "room_id": { "type": "integer", "format": "int64" },
+          "user_id": { "type": "string", "format": "uuid" },
+          "status": { "type": "string", "enum": ["online", "offline"] }
         }
       }
     },
     "messages": {
-      "SendMessage": {
-        "name": "SendMessage",
-        "title": "Отправить сообщение",
-        "description": "Указывать room_id и текст либо вложения. Не передавать sender_id, id или created_at: это серверные поля. Обёртки type/payload в текущем протоколе нет.",
+      "ClientEvents": {
+        "name": "ClientEvents",
+        "title": "События от клиента",
         "payload": {
           "type": "object",
-          "required": ["room_id"],
+          "required": ["type"],
           "properties": {
-            "room_id": { "type": "integer", "format": "int64", "minimum": 1, "description": "ID доступной комнаты из GET /api/v1/conversations." },
-            "content": { "type": "string", "description": "Текст не должен состоять только из пробелов, если вложений нет." },
-            "attachments": { "type": "array", "description": "Массив вложений в текущем формате Attachment. Для обычного текста поле не нужно.", "items": { "$ref": "#/components/schemas/Attachment" } }
-          },
-          "anyOf": [{ "required": ["content"], "properties": { "content": { "minLength": 1 } } }, { "required": ["attachments"], "properties": { "attachments": { "minItems": 1 } } }]
-        },
-        "examples": [{ "payload": { "room_id": 15, "content": "Привет!" } }]
+            "type": { "type": "string", "enum": ["new_message", "edit_message", "delete_message", "mark_as_read", "typing"] },
+            "payload": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "required": ["room_id"],
+                  "properties": {
+                    "room_id": { "type": "integer", "format": "int64" },
+                    "content": { "type": "string" }
+                  }
+                },
+                { "$ref": "#/components/schemas/MessageActionPayload" },
+                { "$ref": "#/components/schemas/TypingPayload" }
+              ]
+            }
+          }
+        }
       },
-      "ChatMessage": {
-        "name": "ChatMessage",
-        "title": "Сообщение комнаты",
-        "payload": { "$ref": "#/components/schemas/Message" },
-        "examples": [{ "payload": { "id": 101, "room_id": 15, "sender_id": "4e57b536-824c-4b9a-a345-ecaf52de478a", "content": "Привет!", "created_at": "2026-10-01T10:00:00Z" } }]
-      },
-      "RoomChanged": {
-        "name": "RoomChanged",
-        "title": "Обновить список комнат",
-        "description": "После REST-запроса создания/получения комнаты Chat рассылает обычный объект Message с id=0. Уведомление не сохраняется в истории. Перезагрузить GET /api/v1/conversations. created_at содержит нулевое время Go, не использовать его как время сообщения.",
-        "payload": { "$ref": "#/components/schemas/Message" },
-        "examples": [{ "payload": { "id": 0, "room_id": 15, "sender_id": "4e57b536-824c-4b9a-a345-ecaf52de478a", "content": "Чат создан", "created_at": "0001-01-01T00:00:00Z" } }]
+      "ServerEvents": {
+        "name": "ServerEvents",
+        "title": "События от сервера",
+        "payload": {
+          "type": "object",
+          "required": ["type"],
+          "properties": {
+            "type": { "type": "string", "enum": ["new_message", "edit_message", "delete_message", "mark_as_read", "typing", "presence", "error"] },
+            "error": { "type": "string", "description": "Присутствует при type = error" },
+            "payload": {
+              "oneOf": [
+                { "$ref": "#/components/schemas/Message" },
+                { "$ref": "#/components/schemas/MessageActionPayload" },
+                { "$ref": "#/components/schemas/TypingPayload" },
+                { "$ref": "#/components/schemas/PresencePayload" }
+              ]
+            }
+          }
+        }
       }
     }
   }

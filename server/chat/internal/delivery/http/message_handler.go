@@ -45,3 +45,36 @@ func (h *MessageHandler) SearchMessages(w http.ResponseWriter, r *http.Request) 
 	}
 	json.NewEncoder(w).Encode(page)
 }
+
+func (h *MessageHandler) GetMessageContext(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value(UserIDKey).(uuid.UUID)
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	roomIDStr := r.PathValue("id")
+	roomID, err := strconv.ParseInt(roomIDStr, 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid roomID", http.StatusBadRequest)
+		return
+	}
+	aroundStr := r.URL.Query().Get("around")
+	aroundID, err := strconv.ParseInt(aroundStr, 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid aroundID", http.StatusBadRequest)
+		return
+	}
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	if limit <= 0 {
+		limit = 30
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	page, err := h.messageService.GetMessageContext(r.Context(), roomID, aroundID, limit, userID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	json.NewEncoder(w).Encode(page)
+}

@@ -174,3 +174,41 @@ func TestMessageRepo_Statuses(t *testing.T) {
 	require.Equal(t, "Edited", msgs[0].Content)
 	require.NotNil(t, msgs[0].DeletedAt)
 }
+
+func TestMessageRepo_GetAround(t *testing.T) {
+	ctx := context.Background()
+	pool, terminate := setupTestDB(t)
+	defer terminate()
+
+	repo := NewMessageRepo(pool)
+	
+	u1 := uuid.New()
+	u2 := uuid.New()
+
+	_, err := pool.Exec(ctx, "INSERT INTO rooms (id, user1_id, user2_id) VALUES ($1, $2, $3)", 1, u1, u2)
+	require.NoError(t, err)
+
+	for i := 1; i <= 10; i++ {
+		msg := &domain.Message{
+			RoomID:   1,
+			SenderID: u1,
+			Content:  "msg",
+		}
+		err = repo.Save(ctx, msg)
+		require.NoError(t, err)
+	}
+
+	page, err := repo.GetAround(ctx, 1, 5, 4)
+	require.NoError(t, err)
+	require.NotNil(t, page)
+
+	// we want around 5 limit 4 (2 before + 5 + 2 after) -> so roughly 3-4-5-6 or 4-5-6-7
+	// with my query: limit/2+1 before (incl 5) and limit/2 after
+	// 4/2+1 = 3 before, 4/2 = 2 after -> 3,4,5 and 6,7 -> 5 items total
+	require.Len(t, page.Items, 5)
+	require.Equal(t, int64(3), page.Items[0].ID)
+	require.Equal(t, int64(4), page.Items[1].ID)
+	require.Equal(t, int64(5), page.Items[2].ID)
+	require.Equal(t, int64(6), page.Items[3].ID)
+	require.Equal(t, int64(7), page.Items[4].ID)
+}

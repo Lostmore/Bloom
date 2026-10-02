@@ -89,8 +89,14 @@ func main() {
 		}
 	}
 	http.HandleFunc("GET /conversations/search", httpDelivery.AuthMiddleware(validator, messageHandler.SearchMessages))
+	http.HandleFunc("GET /conversations/{id}/messages", httpDelivery.AuthMiddleware(validator, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Has("around") {
+			messageHandler.GetMessageContext(w, r)
+		} else {
+			roomHandler.GetRoomHistory(w, r)
+		}
+	}))
 	http.HandleFunc("/api/conversations", httpDelivery.AuthMiddleware(validator, roomsLogic))
-	http.HandleFunc("GET /conversations/{id}/messages", httpDelivery.AuthMiddleware(validator, roomHandler.GetRoomHistory))
 	http.HandleFunc("GET /openapi.json", docs.Handler)
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		websocket.ServeWS(hub, validator, w, r)

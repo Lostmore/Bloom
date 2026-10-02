@@ -44,6 +44,9 @@ func (m *MockMessageRepo) SoftDelete(ctx context.Context, messageID int64, delet
 func (m *MockMessageRepo) SearchByUser(ctx context.Context, userID uuid.UUID, query string, cursor string, limit int) (*domain.MessagePage, error) {
 	return &domain.MessagePage{Items: []*domain.Message{m.SavedMessage}}, nil
 }
+func (m *MockMessageRepo) GetAround(ctx context.Context, roomID int64, aroundID int64, limit int) (*domain.MessagePage, error) {
+	return &domain.MessagePage{Items: []*domain.Message{}}, nil
+}
 func (m *MockRoomRepo) CreateRoom(ctx context.Context, user1ID, user2ID uuid.UUID) (*domain.Room, error) {
 	room := &domain.Room{
 		ID:        1,
@@ -203,3 +206,27 @@ func TestMessageService_SearchMessages(t *testing.T) {
 	require.Len(t, page.Items, 1)
 	require.Equal(t, int64(42), page.Items[0].ID)
 }
+
+func TestGetMessageContext_Success(t *testing.T) {
+	mockMsgRepo := &MockMessageRepo{}
+	mockRoomRepo := &MockRoomRepo{}
+	svc := NewMessageService(mockMsgRepo, mockRoomRepo)
+
+	ctx := context.Background()
+	page, err := svc.GetMessageContext(ctx, 1, 42, 50, uuid.MustParse("00000000-0000-0000-0000-000000000001"))
+	require.NoError(t, err)
+	require.NotNil(t, page)
+}
+
+func TestGetMessageContext_AccessDenied(t *testing.T) {
+	mockMsgRepo := &MockMessageRepo{}
+	mockRoomRepo := &MockRoomRepo{}
+	svc := NewMessageService(mockMsgRepo, mockRoomRepo)
+
+	ctx := context.Background()
+	page, err := svc.GetMessageContext(ctx, 1, 42, 50, uuid.MustParse("00000000-0000-0000-0000-000000000004"))
+	require.Error(t, err)
+	require.Nil(t, page)
+	require.Contains(t, err.Error(), "access denied")
+}
+

@@ -95,3 +95,19 @@ func TestSearchMessages_LongQuery(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 }
+
+func TestGetMessageContext_Success(t *testing.T) {
+	mockRepo := &SearchMockMessageRepo{}
+	svc := service.NewMessageService(mockRepo, &MockRoomRepo{})
+	handler := NewMessageHandler(svc)
+
+	req := httptest.NewRequest(http.MethodGet, "/conversations/1/messages?around=42", nil)
+	req.SetPathValue("id", "1")
+	ctx := context.WithValue(req.Context(), UserIDKey, uuid.MustParse("00000000-0000-0000-0000-000000000001"))
+	req = req.WithContext(ctx)
+
+	rr := httptest.NewRecorder()
+	handler.GetMessageContext(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+}
