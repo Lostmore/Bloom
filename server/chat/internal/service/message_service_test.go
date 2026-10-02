@@ -229,4 +229,3 @@ func TestGetMessageContext_AccessDenied(t *testing.T) {
 	require.Nil(t, page)
 	require.Contains(t, err.Error(), "access denied")
 }
-

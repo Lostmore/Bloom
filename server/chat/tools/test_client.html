@@ -115,11 +115,13 @@
             чаты</button>
 
         <!-- ПОИСК СООБЩЕНИЙ -->
-        <div class="controls hidden" id="searchSection" style="border: 1px solid #eee; padding: 10px; margin-top: 10px;">
+        <div class="controls hidden" id="searchSection"
+            style="border: 1px solid #eee; padding: 10px; margin-top: 10px;">
             <h4>Поиск сообщений</h4>
             <input type="text" id="searchQuery" placeholder="Что ищем?" style="width: 100%; margin-bottom: 5px;">
             <button onclick="searchMessages()" style="width: 100%; cursor: pointer;">Найти</button>
-            <ul id="searchResults" class="chat-list" style="margin-top: 10px; max-height: 200px; overflow-y: auto;"></ul>
+            <ul id="searchResults" class="chat-list" style="margin-top: 10px; max-height: 200px; overflow-y: auto;">
+            </ul>
         </div>
 
         <ul id="roomsList" class="chat-list"></ul>
@@ -157,19 +159,23 @@
         let accessToken = null;
         let currentUserId = null;
         let uploadedFiles = []; // Array of objects { media_id, media_type }
-        let userPresence = {}; // Кеш статусов: user_id -> "online" | "offline"
         let attachmentsSupported = false;
+
+        // Кэш онлайн-статусов
+        let userPresence = {};
+
         function updateOnlineStatus(status) {
-            const statusDiv = document.getElementById("onlineStatus");
+            const el = document.getElementById("onlineStatus");
+            if (!status) {
+                el.innerText = "";
+                return;
+            }
             if (status === "online") {
-                statusDiv.innerText = "🟢 В сети";
-                statusDiv.style.color = "green";
-            } else if (status === "offline") {
-                statusDiv.innerText = "⚪ Не в сети";
-                statusDiv.style.color = "gray";
+                el.innerText = "● В сети";
+                el.style.color = "green";
             } else {
-                statusDiv.innerText = "Статус неизвестен...";
-                statusDiv.style.color = "gray";
+                el.innerText = "○ Не в сети";
+                el.style.color = "gray";
             }
         }
 
@@ -181,15 +187,17 @@
                 const res = await fetch(`${authApiUrl}/register`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ phoneNumber: phone, password: password })
+                    body: JSON.stringify({ phone, password })
                 });
                 if (res.ok) {
-                    const data = await res.json();
-                    onAuthSuccess(data);
+                    document.getElementById("authStatus").innerText = "Регистрация успешна! Теперь войдите.";
+                    document.getElementById("authStatus").style.color = "green";
                 } else {
-                    document.getElementById("authStatus").innerText = "Ошибка регистрации: " + await res.text();
+                    document.getElementById("authStatus").innerText = "Ошибка: " + await res.text();
                 }
-            } catch (e) { document.getElementById("authStatus").innerText = e; }
+            } catch (e) {
+                document.getElementById("authStatus").innerText = "Ошибка: " + e;
+            }
         }
 
         async function login() {
@@ -199,130 +207,139 @@
                 const res = await fetch(`${authApiUrl}/login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ phoneNumber: phone, password: password })
+                    body: JSON.stringify({ phone, password })
                 });
+
                 if (res.ok) {
                     const data = await res.json();
-                    onAuthSuccess(data);
-                } else {
-                    document.getElementById("authStatus").innerText = "Ошибка входа: " + await res.text();
-                }
-            } catch (e) { document.getElementById("authStatus").innerText = e; }
-        }
-
-        async function onAuthSuccess(data) {
-            accessToken = data.accessToken;
-
-            // Запрашиваем свой профиль чтобы узнать свой accountId
-            const meRes = await fetch(`${authApiUrl}/me`, {
-                headers: { 'Authorization': 'Bearer ' + accessToken }
-            });
-            if (meRes.ok) {
-                const meData = await meRes.json();
-                currentUserId = meData.accountId;
-                document.getElementById("myUserId").innerText = currentUserId;
-
-                // Переключаем интерфейс
-                document.getElementById("authSection").classList.add("hidden");
-                document.getElementById("userInfoSection").classList.remove("hidden");
-                document.getElementById("createRoomSection").classList.remove("hidden");
-                document.getElementById("loadRoomsBtn").classList.remove("hidden");
-                document.getElementById("searchSection").classList.remove("hidden");
-                document.getElementById("chatTitle").innerText = "Выберите чат";
-
-                // Проверка Capabilities
-                try {
-                    const chatCapsRes = await fetch(`${roomsApiUrl}/capabilities`, { headers: { 'Authorization': 'Bearer ' + accessToken } });
-                    const mediaCapsRes = await fetch(`${protocol}//${host}/api/v1/media/capabilities`, { headers: { 'Authorization': 'Bearer ' + accessToken } });
-                    if (chatCapsRes.ok && mediaCapsRes.ok) {
-                        const chatCaps = await chatCapsRes.json();
-                        const mediaCaps = await mediaCapsRes.json();
-                        if (chatCaps.attachmentMessages && mediaCaps.privateChatAttachments) {
-                            attachmentsSupported = true;
-                        }
-                    }
-                } catch(e) { console.warn("Capabilities check failed:", e); }
-
-                // --- ГЛОБАЛЬНЫЙ ВЕБСОКЕТ ---
-                const wsUrl = `${wsProtocol}//${host}/api/v1/ws?token=${accessToken}`;
-                ws = new WebSocket(wsUrl);
-
-                ws.onopen = () => console.log("Глобальный WS подключен");
-
-                ws.onmessage = (evt) => {
-                    const wsMsg = JSON.parse(evt.data);
-
-                    if (wsMsg.type === "error") {
-                        alert("Ошибка сервера: " + wsMsg.error);
+                    accessToken = data.access_token || data.token;
+                    if (!accessToken) {
+                        document.getElementById("authStatus").innerText = "Токен не получен";
                         return;
                     }
-
-                    if (wsMsg.type === "new_message") {
-                        const data = wsMsg.payload;
-
-                        // Обновляем список комнат при любом новом сообщении
-                        loadRooms();
-
-                        // Рисуем сообщение только если мы сейчас сидим в этой комнате
-                        if (data.room_id === currentRoomId) {
-                            printMsg(data, "");
-
-                            // Сбрасываем индикатор "печатает"
-                            document.getElementById("typingIndicator").innerText = "";
-
-                            // Автоматически помечаем как прочитанное, если мы получатель
-                            if (data.sender_id !== currentUserId) {
-                                ws.send(JSON.stringify({
-                                    type: "mark_as_read",
-                                    payload: { message_id: data.id, room_id: currentRoomId }
-                                }));
-                            }
-                        } else {
-                            console.log("Новое сообщение в другой комнате:", data.room_id);
-                        }
-                    } else if (wsMsg.type === "edit_message" || wsMsg.type === "delete_message" || wsMsg.type === "mark_as_read") {
-                        if (wsMsg.payload.room_id === currentRoomId) {
-                            // Простой хак для тестового клиента: просто перезагружаем історію чата,
-                            // чтобы отобразить все новые статусы (прочитано/изменено/удалено).
-                            connectToRoom(currentRoomId, currentOtherUserId);
-                        }
-                    }
-
-                    if (wsMsg.type === "typing") {
-                        const data = wsMsg.payload;
-                        if (data.room_id === currentRoomId && data.user_id !== currentUserId) {
-                            const ind = document.getElementById("typingIndicator");
-                            if (data.is_typing) {
-                                ind.innerText = "Собеседник печатает...";
-                                clearTimeout(window.typingTimeout);
-                                window.typingTimeout = setTimeout(() => { ind.innerText = ""; }, 3000);
-                            } else {
-                                ind.innerText = "";
-                            }
-                        }
-                    }
-
-                    if (wsMsg.type === "presence") {
-                        const data = wsMsg.payload;
-                        // 1. Обязательно кэшируем статус в память браузера!
-                        userPresence[data.user_id] = data.status;
-
-                        // 2. Если сейчас открыт чат с этим собеседником — обновляем UI
-                        if (data.user_id === currentOtherUserId) {
-                            updateOnlineStatus(data.status);
-                        }
-                    }
-                };
-
-                ws.onclose = () => {
-                    console.log("WS Отключен");
-                    document.getElementById("msg").disabled = true;
-                    document.getElementById("sendBtn").disabled = true;
-                    document.getElementById("uploadBtn").disabled = true;
-                };
-
-                loadRooms();
+                    onAuthSuccess(accessToken);
+                } else {
+                    document.getElementById("authStatus").innerText = "Ошибка: " + await res.text();
+                }
+            } catch (e) {
+                document.getElementById("authStatus").innerText = "Ошибка: " + e;
             }
+        }
+
+        async function onAuthSuccess(token) {
+            // Декодируем JWT чтобы получить user_id
+            try {
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                currentUserId = payload.user_id || payload.sub;
+            } catch (e) {
+                currentUserId = "unknown";
+            }
+
+            document.getElementById("authSection").classList.add("hidden");
+            document.getElementById("userInfoSection").classList.remove("hidden");
+            document.getElementById("createRoomSection").classList.remove("hidden");
+            document.getElementById("loadRoomsBtn").classList.remove("hidden");
+            document.getElementById("searchSection").classList.remove("hidden");
+            document.getElementById("myUserId").innerText = currentUserId;
+
+            // --- CAPABILITIES CHECK ---
+            try {
+                const chatCapRes = await fetch(`${protocol}//${host}/api/v1/conversations/capabilities`, {
+                    headers: { 'Authorization': 'Bearer ' + accessToken }
+                });
+                const mediaCapRes = await fetch(`${protocol}//${host}/api/v1/media/capabilities`, {
+                    headers: { 'Authorization': 'Bearer ' + accessToken }
+                });
+                if (chatCapRes.ok && mediaCapRes.ok) {
+                    const chatCap = await chatCapRes.json();
+                    const mediaCap = await mediaCapRes.json();
+                    if (chatCap.attachmentMessages && mediaCap.privateChatAttachments) {
+                        attachmentsSupported = true;
+                    }
+                }
+            } catch (e) { console.warn("Capabilities check failed:", e); }
+
+            // --- ГЛОБАЛЬНЫЙ ВЕБСОКЕТ ---
+            const wsUrl = `${wsProtocol}//${host}/api/v1/ws?token=${accessToken}`;
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                console.log("WS Подключен");
+            };
+
+            ws.onmessage = (evt) => {
+                const wsMsg = JSON.parse(evt.data);
+
+                if (wsMsg.type === "error") {
+                    alert("Ошибка сервера: " + wsMsg.error);
+                    return;
+                }
+
+                if (wsMsg.type === "new_message") {
+                    const data = wsMsg.payload;
+
+                    // Обновляем список комнат при любом новом сообщении
+                    loadRooms();
+
+                    // Рисуем сообщение только если мы сейчас сидим в этой комнате
+                    if (data.room_id === currentRoomId) {
+                        printMsg(data, "");
+
+                        // Сбрасываем индикатор "печатает"
+                        document.getElementById("typingIndicator").innerText = "";
+
+                        // Автоматически помечаем как прочитанное, если мы получатель
+                        if (data.sender_id !== currentUserId) {
+                            ws.send(JSON.stringify({
+                                type: "mark_as_read",
+                                payload: { message_id: data.id, room_id: currentRoomId }
+                            }));
+                        }
+                    } else {
+                        console.log("Новое сообщение в другой комнате:", data.room_id);
+                    }
+                } else if (wsMsg.type === "edit_message" || wsMsg.type === "delete_message" || wsMsg.type === "mark_as_read") {
+                    if (wsMsg.payload.room_id === currentRoomId) {
+                        // Простой хак для тестового клиента: просто перезагружаем історію чата,
+                        // чтобы отобразить все новые статусы (прочитано/изменено/удалено).
+                        connectToRoom(currentRoomId, currentOtherUserId);
+                    }
+                }
+
+                if (wsMsg.type === "typing") {
+                    const data = wsMsg.payload;
+                    if (data.room_id === currentRoomId && data.user_id !== currentUserId) {
+                        const ind = document.getElementById("typingIndicator");
+                        if (data.is_typing) {
+                            ind.innerText = "Собеседник печатает...";
+                            clearTimeout(window.typingTimeout);
+                            window.typingTimeout = setTimeout(() => { ind.innerText = ""; }, 3000);
+                        } else {
+                            ind.innerText = "";
+                        }
+                    }
+                }
+
+                if (wsMsg.type === "presence") {
+                    const data = wsMsg.payload;
+                    // 1. Обязательно кэшируем статус в память браузера!
+                    userPresence[data.user_id] = data.status;
+
+                    // 2. Если сейчас открыт чат с этим собеседником — обновляем UI
+                    if (data.user_id === currentOtherUserId) {
+                        updateOnlineStatus(data.status);
+                    }
+                }
+            };
+
+            ws.onclose = () => {
+                console.log("WS Отключен");
+                document.getElementById("msg").disabled = true;
+                document.getElementById("sendBtn").disabled = true;
+                document.getElementById("uploadBtn").disabled = true;
+            };
+
+            loadRooms();
         }
 
 
@@ -441,7 +458,7 @@
                 });
                 if (res.ok) {
                     const page = await res.json();
-                    const msgs = page.items || page; 
+                    const msgs = page.items || page;
                     if (msgs && msgs.length > 0) {
                         msgs.forEach(data => {
                             printMsg(data, "");

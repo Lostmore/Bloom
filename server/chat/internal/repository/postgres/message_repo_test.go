@@ -181,7 +181,7 @@ func TestMessageRepo_GetAround(t *testing.T) {
 	defer terminate()
 
 	repo := NewMessageRepo(pool)
-	
+
 	u1 := uuid.New()
 	u2 := uuid.New()
 
