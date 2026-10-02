@@ -141,6 +141,14 @@ fun ChatListScreen(
             loading = false
         }
     }
+    LaunchedEffect(partners, loading, lifecycle) {
+        if (!loading && partners.values.any { it.profile == null }) {
+            lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                delay(60_000)
+                reload++
+            }
+        }
+    }
     val items =
         rooms
             .map { room ->
@@ -153,10 +161,7 @@ fun ChatListScreen(
     ChatsContent(
         items,
         loading,
-        error
-            ?: if (partners.values.any { it.profile == null && !it.unavailable })
-                "Не удалось получить часть имён из Users. Потяни список вниз, чтобы повторить."
-            else null,
+        error,
         { if (!loading) reload++ },
         openChat,
         searchResults =

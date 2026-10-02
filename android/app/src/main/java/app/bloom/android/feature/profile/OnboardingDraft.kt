@@ -36,7 +36,6 @@ data class OnboardingDraft(
             }
             2 -> if (gender.isEmpty()) "Выбери вариант." else null
             3 -> if (goals.isEmpty()) "Выбери хотя бы одну цель." else null
-            4 -> if (interests.isEmpty()) "Выбери хотя бы одно увлечение." else null
             else -> null
         }
 }

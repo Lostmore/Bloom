@@ -37,20 +37,6 @@ val BloomStickers =
 
 fun bloomSticker(text: String?) = BloomStickers.find { it.wire == text }
 
-private val EmojiGroups =
-    linkedMapOf(
-        "Улыбки" to
-            "😊 😂 🥰 😍 😘 😉 😎 🥹 🤗 🤔 😅 🥲 😀 😃 😄 😁 😆 🤣 🙂 🙃 🫠 😇 🤩 😋 😛 😜 🤪 😝 🤭 🫢 🫣 🤫 🫡 🤐 🤨 😐 😑 😶 😏 😒 🙄 😬 😌 😔 😪 🤤 😴 😷 🤒 🤕 🤢 🤧 🥵 🥶 🥴 😵 🤯 🥳 😕 🫤 😟 🙁 ☹️ 😮 😯 😲 😳 🥺 😦 😧 😨 😰 😥 😢 😭 😱 😖 😣 😞 😓 😩 😫 😤 😡 🤬 😈 👻 🤖",
-        "Жесты" to
-            "👍 👎 👋 🤚 🖐️ ✋ 🖖 🫶 👌 🤌 🤏 ✌️ 🤞 🫰 🤟 🤘 🤙 👈 👉 👆 👇 ☝️ 🫵 ✊ 👊 🤛 🤜 👏 🙌 👐 🤲 🤝 🙏 💪 🦾 ✍️ 💅 🤳 🫂",
-        "Чувства" to
-            "❤️ 🩷 🧡 💛 💚 💙 🩵 💜 🤎 🖤 🩶 🤍 💔 ❤️‍🔥 ❤️‍🩹 ❣️ 💕 💞 💓 💗 💖 💘 💝 💟 💌 💋 💯 💢 💥 💫 💦 💨 ✨ 🌸 🔥 🎉",
-        "Природа" to
-            "🐶 🐱 🐭 🐹 🐰 🦊 🐻 🐼 🐨 🐯 🦁 🐮 🐷 🐸 🐵 🦄 🐝 🦋 🐢 🐬 🐳 🦦 🐾 🌵 🎄 🌲 🌳 🌴 🌱 🌿 ☘️ 🍀 🍁 🍂 🍃 🌺 🌻 🌹 🪻 🌷 💐 🌍 🌙 🌞 ⭐ 🌟 🌈 ☀️ 🌤️ ☁️ 🌧️ ❄️ ⛄ 🌊",
-        "Встречи" to
-            "☕ 🍵 🧋 🥤 🍋 🍓 🍒 🍉 🍇 🍎 🍑 🥑 🍕 🍔 🍟 🌮 🍣 🍜 🍝 🥗 🍿 🍪 🍩 🍰 🧁 🍫 🍦 🥐 🥞 🥂 🍽️ 🎬 🎭 🎨 🎧 🎤 🎸 🎹 🎮 🎲 📚 🎳 🎾 🏀 ⚽ 🚴 🏃 🧘 🏕️ 🏖️ 🌅 🌄 🏔️ 🚗 🚆 ✈️ 🎁 🎈 🎊 🪩 📷",
-    )
-
 @Composable
 fun BloomStickerArt(sticker: BloomSticker, modifier: Modifier = Modifier) {
     Column(modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -67,18 +53,18 @@ fun ExpressionPicker(
     emoji: (String) -> Unit,
     sticker: (BloomSticker) -> Unit,
 ) {
-    var selected by rememberSaveable { mutableStateOf("Улыбки") }
+    var selected by rememberSaveable { mutableStateOf("Emoji") }
     Column(Modifier.fillMaxWidth().height(280.dp)) {
         LazyRow(
             modifier = Modifier.testTag("expression-categories"),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             contentPadding = PaddingValues(horizontal = 12.dp),
         ) {
-            items(EmojiGroups.keys.toList() + "Bloom") { name ->
+            items(listOf("Emoji", "Bloom")) { name ->
                 FilterChip(
                     selected == name,
                     { selected = name },
-                    label = { Text(if (name == "Bloom") "Стикеры Bloom" else name) },
+                    label = { Text(if (name == "Bloom") "Стикеры Bloom" else "Эмодзи") },
                 )
             }
         }
@@ -101,21 +87,7 @@ fun ExpressionPicker(
                 }
             }
         } else {
-            // Capture this category before the lazy content runs: selection may change
-            // to the sticker tab while the old emoji grid is still being measured.
-            val emojiItems = EmojiGroups.getValue(selected).split(" ")
-            LazyVerticalGrid(GridCells.Adaptive(48.dp), Modifier.weight(1f), contentPadding = PaddingValues(8.dp)) {
-                items(emojiItems) { item ->
-                    TextButton(
-                        onClick = { emoji(item) },
-                        enabled = enabled,
-                        modifier = Modifier.height(48.dp),
-                        contentPadding = PaddingValues(0.dp),
-                    ) {
-                        Text(item, fontSize = 26.sp)
-                    }
-                }
-            }
+            AndroidEmojiPicker(enabled, emoji, Modifier.fillMaxWidth().weight(1f))
         }
     }
 }

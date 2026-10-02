@@ -2,6 +2,7 @@ package app.bloom.android.feature.chat
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -32,16 +33,31 @@ fun MessageBubble(
     highlighted: Boolean,
     edit: ((String) -> Boolean)? = null,
     delete: (() -> Boolean)? = null,
+    selected: Boolean = false,
+    selectionActive: Boolean = false,
+    select: (() -> Unit)? = null,
+    editRequest: Int = 0,
+    editStarted: () -> Unit = {},
 ) {
     var details by remember(message.id) { mutableStateOf(false) }
+    var menu by remember(message.id) { mutableStateOf(false) }
     var editing by remember(message.id) { mutableStateOf(false) }
     var deleting by remember(message.id) { mutableStateOf(false) }
     var replacement by remember(message.id, message.content) { mutableStateOf(message.content.orEmpty()) }
     var actionError by remember(message.id) { mutableStateOf<String?>(null) }
     val clipboard = LocalClipboardManager.current
     val readTime = message.readAt?.let { runCatching { OffsetDateTime.parse(it) }.getOrNull() }
+    var showReadTime by remember(message.id) { mutableStateOf(false) }
+    LaunchedEffect(editRequest) {
+        if (editRequest > 0 && own && edit != null && message.deletedAt == null) {
+            replacement = message.content.orEmpty()
+            editing = true
+            editStarted()
+        }
+    }
     fun closeDialog() {
         details = false
+        menu = false
         editing = false
         deleting = false
         actionError = null
@@ -112,12 +128,25 @@ fun MessageBubble(
     ) {
         Surface(
             Modifier.widthIn(max = 310.dp)
-                .combinedClickable(enabled = !editing, onClick = {}, onLongClick = { details = true })
-                .pointerInput(message.id) {
+                .combinedClickable(
+                    enabled = !editing && message.deletedAt == null,
+                    onClick = {
+                        if (selectionActive) select?.invoke() else menu = true
+                    },
+                    onLongClick = { if (select != null) select() else details = true },
+                )
+                .pointerInput(message.id, select, editing) {
                     awaitPointerEventScope {
                         while (true) {
                             val event = awaitPointerEvent()
-                            if (event.type == PointerEventType.Press && event.buttons.isSecondaryPressed) details = true
+                            if (
+                                !editing &&
+                                    message.deletedAt == null &&
+                                    event.type == PointerEventType.Press &&
+                                    event.buttons.isSecondaryPressed
+                            ) {
+                                menu = true
+                            }
                         }
                     }
                 },
@@ -129,9 +158,73 @@ fun MessageBubble(
                     if (own) 18.dp else 5.dp,
                 ),
             color = if (own) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
-            border = if (highlighted) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
+            border =
+                if (highlighted || selected)
+                    BorderStroke(if (selected) 3.dp else 1.dp, MaterialTheme.colorScheme.primary)
+                else null,
         ) {
             Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Box {
+                    DropdownMenu(menu, onDismissRequest = { menu = false }) {
+                        if (!message.content.isNullOrBlank())
+                            DropdownMenuItem(
+                                text = { Text("Копировать") },
+                                onClick = {
+                                    clipboard.setText(AnnotatedString(message.content.orEmpty()))
+                                    menu = false
+                                },
+                            )
+                        if (
+                            own &&
+                                edit != null &&
+                                !message.content.isNullOrBlank() &&
+                                bloomSticker(message.content) == null
+                        )
+                            DropdownMenuItem(
+                                text = { Text("Изменить") },
+                                onClick = {
+                                    replacement = message.content.orEmpty()
+                                    menu = false
+                                    editing = true
+                                },
+                            )
+                        if (own && delete != null)
+                            DropdownMenuItem(
+                                text = { Text("Удалить") },
+                                onClick = {
+                                    menu = false
+                                    deleting = true
+                                },
+                            )
+                        if (select != null)
+                            DropdownMenuItem(
+                                text = { Text("Выбрать") },
+                                onClick = {
+                                    menu = false
+                                    select()
+                                },
+                            )
+                    }
+                }
+                if (selected) Text("✓ Выбрано", style = MaterialTheme.typography.labelSmall)
+                if (showReadTime && !selectionActive && own && readTime != null) {
+                    val local = readTime.atZoneSameInstant(ZoneId.systemDefault())
+                    val day = local.toLocalDate()
+                    val today = java.time.LocalDate.now()
+                    val date =
+                        when (day) {
+                            today -> "сегодня"
+                            today.minusDays(1) -> "вчера"
+                            else ->
+                                local.format(
+                                    DateTimeFormatter.ofPattern("d MMMM yyyy", java.util.Locale.forLanguageTag("ru"))
+                                )
+                        }
+                    Text(
+                        "Прочитано $date в ${local.format(DateTimeFormatter.ofPattern("HH:mm"))}",
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                }
                 if (editing && own && message.deletedAt == null) {
                     OutlinedTextField(
                         replacement,
@@ -187,7 +280,11 @@ fun MessageBubble(
                         Icon(
                             if (readTime != null) Icons.Outlined.DoneAll else Icons.Outlined.Done,
                             if (readTime != null) "Прочитано" else "Отправлено",
-                            Modifier.size(16.dp),
+                            Modifier.size(24.dp)
+                                .clickable(enabled = readTime != null && !selectionActive) {
+                                    showReadTime = !showReadTime
+                                }
+                                .padding(4.dp),
                             tint =
                                 if (readTime != null) MaterialTheme.colorScheme.primary
                                 else MaterialTheme.colorScheme.onSurfaceVariant,

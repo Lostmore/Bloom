@@ -1,5 +1,6 @@
 package app.bloom.android.feature.chat
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -12,6 +13,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -42,6 +45,7 @@ fun ChatRoomScreen(
     val scope = rememberCoroutineScope()
     val list = rememberLazyListState()
     var partner by remember(roomId) { mutableStateOf("Собеседник") }
+    var partnerId by remember(roomId, myId) { mutableStateOf<String?>(null) }
     var partnerProfile by remember(roomId) { mutableStateOf<app.bloom.android.core.model.Profile?>(null) }
     var partnerInterests by remember(roomId) { mutableStateOf<List<String>>(emptyList()) }
     var showPartner by remember(roomId) { mutableStateOf(false) }
@@ -72,6 +76,53 @@ fun ChatRoomScreen(
         }
     }
     val messages = if (focused && context.isNotEmpty()) context else state.messages
+    var selectedIds by remember(roomId) { mutableStateOf(setOf<Long>()) }
+    var selectionMenu by remember { mutableStateOf(false) }
+    var confirmDelete by remember { mutableStateOf(false) }
+    var editingId by remember { mutableStateOf<Long?>(null) }
+    var editRequest by remember { mutableIntStateOf(0) }
+    var pendingDeletes by remember { mutableStateOf(setOf<Long>()) }
+    val clipboard = LocalClipboardManager.current
+    val selectedMessages = messages.filter { it.id in selectedIds && it.deletedAt == null }
+    BackHandler(selectedIds.isNotEmpty()) {
+        selectedIds = emptySet()
+        selectionMenu = false
+    }
+    LaunchedEffect(state.messages) {
+        val deleted = state.messages.filter { it.deletedAt != null }.map { it.id }.toSet()
+        selectedIds = selectedIds - deleted
+        pendingDeletes = pendingDeletes - deleted
+    }
+    LaunchedEffect(state.errorVersion, state.connected) { pendingDeletes = emptySet() }
+    LaunchedEffect(pendingDeletes) {
+        if (pendingDeletes.isNotEmpty()) {
+            delay(15_000)
+            pendingDeletes = emptySet()
+        }
+    }
+    if (confirmDelete)
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            title = { Text("Удалить сообщения (${selectedMessages.size})?") },
+            text = { Text("Они будут удалены для обоих участников переписки.") },
+            confirmButton = {
+                TextButton(
+                    enabled = state.connected && pendingDeletes.isEmpty(),
+                    onClick = {
+                        pendingDeletes =
+                            selectedMessages
+                                .filter { it.senderId == myId && connection.delete(it.id) }
+                                .map { it.id }
+                                .toSet()
+                        confirmDelete = false
+                        selectionMenu = false
+                    },
+                ) {
+                    Text("Удалить")
+                }
+            },
+            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Отмена") } },
+        )
     val hits =
         remember(messages, query) {
             if (query.isBlank()) emptyList()
@@ -85,16 +136,15 @@ fun ChatRoomScreen(
         matchIndex = matchIndex.coerceIn(0, hits.lastIndex.coerceAtLeast(0))
     }
     var partnerState by remember(graph, roomId, myId) { mutableStateOf<ChatPartner?>(null) }
-    var reloadPartner by remember { mutableIntStateOf(0) }
     var profileRevision by remember { mutableIntStateOf(0) }
-    var loadingPartner by remember { mutableStateOf(false) }
-    LaunchedEffect(graph, roomId, myId, lifecycle, reloadPartner) {
+    LaunchedEffect(graph, roomId, myId, lifecycle, state.connectionVersion) {
         lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            var failures = 0
             while (true) {
-                loadingPartner = true
                 try {
                     val room = graph.chat.rooms().orEmpty().find { it.id == roomId && it.active }
                     val id = room?.partnerOrNull(myId)
+                    partnerId = id
                     val loaded = if (id == null) ChatPartner(unavailable = true) else loadChatPartner(graph.users, id)
                     partnerState = loaded
                     partnerProfile = loaded.profile
@@ -122,10 +172,17 @@ fun ChatRoomScreen(
                     partner = partnerState!!.name
                     partnerInterests = emptyList()
                     showPartner = false
-                } finally {
-                    loadingPartner = false
                 }
-                delay(60_000)
+                // Retry transient failures quietly, with a bounded backoff while the screen is visible.
+                // Access denials still clear the profile and use the normal refresh interval.
+                if (partnerState?.profile == null && partnerState?.unavailable != true) {
+                    val retryDelays = longArrayOf(2_000, 5_000, 15_000, 60_000)
+                    delay(retryDelays[failures.coerceAtMost(retryDelays.lastIndex)])
+                    failures = (failures + 1).coerceAtMost(retryDelays.lastIndex)
+                } else {
+                    failures = 0
+                    delay(60_000)
+                }
             }
         }
     }
@@ -174,8 +231,8 @@ fun ChatRoomScreen(
     DisposableEffect(connection) { onDispose { connection.disconnect() } }
     ReadReceiptsEffect(connection, myId, messages, list)
     var typingNow by remember { mutableStateOf(false) }
-    LaunchedEffect(state.typingUntil, partnerProfile?.id) {
-        val until = state.typingUntil[partnerProfile?.id] ?: 0L
+    LaunchedEffect(state.typingUntil, partnerId) {
+        val until = state.typingUntil.entries.firstOrNull { it.key.equals(partnerId, ignoreCase = true) }?.value ?: 0L
         typingNow = until > System.currentTimeMillis()
         if (typingNow) {
             delay((until - System.currentTimeMillis()).coerceAtLeast(0))
@@ -258,12 +315,63 @@ fun ChatRoomScreen(
             }
         }
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-        if (partnerState?.profile == null && partnerState != null) {
-            TextButton(onClick = { reloadPartner++ }, enabled = !loadingPartner) {
-                Text(
-                    if (partnerState?.unavailable == true) "Профиль недоступен · Проверить снова"
-                    else "Не удалось загрузить собеседника · Повторить"
-                )
+        if (selectedIds.isNotEmpty()) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(
+                    onClick = {
+                        selectedIds = emptySet()
+                        selectionMenu = false
+                    }
+                ) {
+                    Icon(Icons.Outlined.Close, "Снять выделение")
+                }
+                Text("Выбрано: ${selectedMessages.size}", Modifier.weight(1f))
+                Box {
+                    IconButton(onClick = { selectionMenu = true }) {
+                        Icon(Icons.Outlined.MoreVert, "Действия с сообщениями")
+                    }
+                    DropdownMenu(selectionMenu, onDismissRequest = { selectionMenu = false }) {
+                        DropdownMenuItem(
+                            text = { Text("Копировать") },
+                            enabled = selectedMessages.any { !it.content.isNullOrBlank() },
+                            onClick = {
+                                clipboard.setText(
+                                    AnnotatedString(selectedMessages.joinToString("\n") { it.content.orEmpty() })
+                                )
+                                selectedIds = emptySet()
+                                selectionMenu = false
+                            },
+                        )
+                        val single = selectedMessages.singleOrNull()
+                        if (
+                            single != null &&
+                                single.senderId == myId &&
+                                bloomSticker(single.content) == null &&
+                                !single.content.isNullOrBlank()
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Изменить") },
+                                enabled = state.connected && pendingDeletes.isEmpty(),
+                                onClick = {
+                                    editingId = single.id
+                                    editRequest++
+                                    selectedIds = emptySet()
+                                    selectionMenu = false
+                                },
+                            )
+                        }
+                        if (selectedMessages.isNotEmpty() && selectedMessages.all { it.senderId == myId }) {
+                            DropdownMenuItem(
+                                text = { Text("Удалить") },
+                                enabled = state.connected && pendingDeletes.isEmpty(),
+                                onClick = {
+                                    confirmDelete = true
+                                    selectionMenu = false
+                                },
+                            )
+                        }
+                    }
+                }
             }
         }
         if (loadingHistory) LinearProgressIndicator(Modifier.fillMaxWidth())
@@ -358,6 +466,14 @@ fun ChatRoomScreen(
                             message,
                             message.senderId == myId,
                             message.id == highlighted,
+                            selected = message.id in selectedIds,
+                            selectionActive = selectedIds.isNotEmpty(),
+                            select = {
+                                if (message.id in selectedIds) selectedIds = selectedIds - message.id
+                                else selectedIds = selectedIds + message.id
+                            },
+                            editRequest = if (editingId == message.id) editRequest else 0,
+                            editStarted = { editingId = null },
                             edit = if (state.connected) { text -> connection.edit(message.id, text) } else null,
                             delete =
                                 if (state.connected) {

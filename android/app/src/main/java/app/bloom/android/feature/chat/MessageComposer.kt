@@ -13,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextRange
@@ -39,9 +40,13 @@ fun MessageComposer(
     var emojiPanel by rememberSaveable { mutableStateOf(false) }
     val keyboard = LocalSoftwareKeyboardController.current
     val focus = remember { FocusRequester() }
+    var inputFocused by remember { mutableStateOf(false) }
     BackHandler(enabled = emojiPanel) { emojiPanel = false }
     Column {
         val selectedSticker = bloomSticker(value.text)
+        if (enabled && inputFocused && !emojiPanel && selectedSticker == null) {
+            EmojiSuggestions(value, change)
+        }
         if (selectedSticker != null)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 BloomStickerArt(selectedSticker, Modifier.weight(1f))
@@ -57,7 +62,10 @@ fun MessageComposer(
             OutlinedTextField(
                 if (selectedSticker == null) value else TextFieldValue(),
                 { if (it.text.length <= 4000) change(it) },
-                Modifier.weight(1f).focusRequester(focus).testTag("message-input"),
+                Modifier.weight(1f)
+                    .focusRequester(focus)
+                    .onFocusChanged { inputFocused = it.isFocused }
+                    .testTag("message-input"),
                 enabled = enabled,
                 placeholder = { Text("Сообщение") },
                 maxLines = 5,

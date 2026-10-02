@@ -7,7 +7,7 @@ import retrofit2.HttpException
 
 data class ChatPartner(val profile: Profile? = null, val unavailable: Boolean = false) {
     val name: String
-        get() = profile?.nickname ?: if (unavailable) "Профиль недоступен" else "Имя не загрузилось"
+        get() = profile?.nickname ?: "Собеседник"
 
     val photoId: String?
         get() =

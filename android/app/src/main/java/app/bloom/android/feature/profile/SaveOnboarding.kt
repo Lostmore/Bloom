@@ -33,6 +33,8 @@ suspend fun saveOnboarding(users: UsersApi, draft: OnboardingDraft, profileReady
             draft.goals.toSet(),
         )
     )
-    users.interests(mapOf("interests" to draft.interests))
+    if (draft.interests.isNotEmpty() || !current.interests.isNullOrEmpty()) {
+        users.interests(mapOf("interests" to draft.interests))
+    }
     return users.me()
 }

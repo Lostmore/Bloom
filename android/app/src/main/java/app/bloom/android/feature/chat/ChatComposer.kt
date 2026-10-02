@@ -18,6 +18,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import app.bloom.android.AppGraph
 import app.bloom.android.core.model.Attachment
 import app.bloom.android.core.model.ChatMessage
@@ -27,6 +30,8 @@ import app.bloom.android.core.ui.ErrorMessage
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 
 fun confirmsSend(
@@ -65,13 +70,32 @@ fun ChatComposer(
     var viewing by remember { mutableStateOf<Int?>(null) }
     val resolver = LocalContext.current.contentResolver
     val scope = rememberCoroutineScope()
-    LaunchedEffect(draft.text, state.connected) {
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(connection, lifecycle, state.connected) {
         if (!state.connected) return@LaunchedEffect
-        delay(500)
-        connection.typing(draft.text.isNotBlank())
-        if (draft.text.isNotBlank()) {
-            delay(3000)
-            connection.typing(false)
+        lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            var lastSent = 0L
+            try {
+                // Restoring an existing draft is not typing. Observe actual changes while active.
+                snapshotFlow { draft.text to busy }
+                    .drop(1)
+                    .collectLatest { (text, sending) ->
+                        if (sending || text.isBlank() || bloomSticker(text) != null) {
+                            connection.typing(false)
+                            lastSent = 0L
+                        } else {
+                            val now = android.os.SystemClock.elapsedRealtime()
+                            if (lastSent == 0L || now - lastSent >= 1500) {
+                                if (connection.typing(true)) lastSent = now
+                            }
+                            delay(3000)
+                            connection.typing(false)
+                            lastSent = 0L
+                        }
+                    }
+            } finally {
+                connection.typing(false)
+            }
         }
     }
     LaunchedEffect(state.errorVersion) {
