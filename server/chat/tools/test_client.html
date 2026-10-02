@@ -114,6 +114,16 @@
             style="width: 100%; padding: 10px; background: #dcedc8; border: none; cursor:pointer;">📥 Загрузить мои
             чаты</button>
 
+        <!-- ПОИСК СООБЩЕНИЙ -->
+        <div class="controls hidden" id="searchSection"
+            style="border: 1px solid #eee; padding: 10px; margin-top: 10px;">
+            <h4>Поиск сообщений</h4>
+            <input type="text" id="searchQuery" placeholder="Что ищем?" style="width: 100%; margin-bottom: 5px;">
+            <button onclick="searchMessages()" style="width: 100%; cursor: pointer;">Найти</button>
+            <ul id="searchResults" class="chat-list" style="margin-top: 10px; max-height: 200px; overflow-y: auto;">
+            </ul>
+        </div>
+
         <ul id="roomsList" class="chat-list"></ul>
     </div>
 
@@ -148,20 +158,24 @@
         let currentOtherUserId = null;
         let accessToken = null;
         let currentUserId = null;
-        let uploadedFiles = []; // Массив ссылок
-        let userPresence = {}; // Кеш статусов: user_id -> "online" | "offline"
+        let uploadedFiles = []; // Array of objects { media_id, media_type }
+        let attachmentsSupported = false;
+
+        // Кэш онлайн-статусов
+        let userPresence = {};
 
         function updateOnlineStatus(status) {
-            const statusDiv = document.getElementById("onlineStatus");
+            const el = document.getElementById("onlineStatus");
+            if (!status) {
+                el.innerText = "";
+                return;
+            }
             if (status === "online") {
-                statusDiv.innerText = "🟢 В сети";
-                statusDiv.style.color = "green";
-            } else if (status === "offline") {
-                statusDiv.innerText = "⚪ Не в сети";
-                statusDiv.style.color = "gray";
+                el.innerText = "● В сети";
+                el.style.color = "green";
             } else {
-                statusDiv.innerText = "Статус неизвестен...";
-                statusDiv.style.color = "gray";
+                el.innerText = "○ Не в сети";
+                el.style.color = "gray";
             }
         }
 
@@ -173,15 +187,17 @@
                 const res = await fetch(`${authApiUrl}/register`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ phoneNumber: phone, password: password })
+                    body: JSON.stringify({ phone, password })
                 });
                 if (res.ok) {
-                    const data = await res.json();
-                    onAuthSuccess(data);
+                    document.getElementById("authStatus").innerText = "Регистрация успешна! Теперь войдите.";
+                    document.getElementById("authStatus").style.color = "green";
                 } else {
-                    document.getElementById("authStatus").innerText = "Ошибка регистрации: " + await res.text();
+                    document.getElementById("authStatus").innerText = "Ошибка: " + await res.text();
                 }
-            } catch (e) { document.getElementById("authStatus").innerText = e; }
+            } catch (e) {
+                document.getElementById("authStatus").innerText = "Ошибка: " + e;
+            }
         }
 
         async function login() {
@@ -191,44 +207,76 @@
                 const res = await fetch(`${authApiUrl}/login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ phoneNumber: phone, password: password })
+                    body: JSON.stringify({ phone, password })
                 });
+
                 if (res.ok) {
                     const data = await res.json();
-                    onAuthSuccess(data);
+                    accessToken = data.access_token || data.token;
+                    if (!accessToken) {
+                        document.getElementById("authStatus").innerText = "Токен не получен";
+                        return;
+                    }
+                    onAuthSuccess(accessToken);
                 } else {
-                    document.getElementById("authStatus").innerText = "Ошибка входа: " + await res.text();
+                    document.getElementById("authStatus").innerText = "Ошибка: " + await res.text();
                 }
-            } catch (e) { document.getElementById("authStatus").innerText = e; }
+            } catch (e) {
+                document.getElementById("authStatus").innerText = "Ошибка: " + e;
+            }
         }
 
-        async function onAuthSuccess(data) {
-            accessToken = data.accessToken;
+        async function onAuthSuccess(token) {
+            // Декодируем JWT чтобы получить user_id
+            try {
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                currentUserId = payload.user_id || payload.sub;
+            } catch (e) {
+                currentUserId = "unknown";
+            }
 
-            // Запрашиваем свой профиль чтобы узнать свой accountId
-            const meRes = await fetch(`${authApiUrl}/me`, {
-                headers: { 'Authorization': 'Bearer ' + accessToken }
-            });
-            if (meRes.ok) {
-                const meData = await meRes.json();
-                currentUserId = meData.accountId;
-                document.getElementById("myUserId").innerText = currentUserId;
+            document.getElementById("authSection").classList.add("hidden");
+            document.getElementById("userInfoSection").classList.remove("hidden");
+            document.getElementById("createRoomSection").classList.remove("hidden");
+            document.getElementById("loadRoomsBtn").classList.remove("hidden");
+            document.getElementById("searchSection").classList.remove("hidden");
+            document.getElementById("myUserId").innerText = currentUserId;
 
-                // Переключаем интерфейс
-                document.getElementById("authSection").classList.add("hidden");
-                document.getElementById("userInfoSection").classList.remove("hidden");
-                document.getElementById("createRoomSection").classList.remove("hidden");
-                document.getElementById("loadRoomsBtn").classList.remove("hidden");
-                document.getElementById("chatTitle").innerText = "Выберите чат";
+            // --- CAPABILITIES CHECK ---
+            try {
+                const chatCapRes = await fetch(`${protocol}//${host}/api/v1/conversations/capabilities`, {
+                    headers: { 'Authorization': 'Bearer ' + accessToken }
+                });
+                const mediaCapRes = await fetch(`${protocol}//${host}/api/v1/media/capabilities`, {
+                    headers: { 'Authorization': 'Bearer ' + accessToken }
+                });
+                if (chatCapRes.ok && mediaCapRes.ok) {
+                    const chatCap = await chatCapRes.json();
+                    const mediaCap = await mediaCapRes.json();
+                    if (chatCap.attachmentMessages && mediaCap.privateChatAttachments) {
+                        attachmentsSupported = true;
+                    }
+                }
+            } catch (e) { console.warn("Capabilities check failed:", e); }
 
-                // --- ГЛОБАЛЬНЫЙ ВЕБСОКЕТ ---
-                const wsUrl = `${wsProtocol}//${host}/api/v1/ws?token=${accessToken}`;
-                ws = new WebSocket(wsUrl);
+            // --- ГЛОБАЛЬНЫЙ ВЕБСОКЕТ ---
+            const wsUrl = `${wsProtocol}//${host}/api/v1/ws?token=${accessToken}`;
+            ws = new WebSocket(wsUrl);
 
-                ws.onopen = () => console.log("Глобальный WS подключен");
+            ws.onopen = () => {
+                console.log("WS Подключен");
+            };
 
-                ws.onmessage = (evt) => {
-                    const wsMsg = JSON.parse(evt.data);
+            ws.onmessage = (evt) => {
+                const wsMsg = JSON.parse(evt.data);
+
+                if (wsMsg.type === "error") {
+                    alert("Ошибка сервера: " + wsMsg.error);
+                    return;
+                }
+
+                if (wsMsg.type === "new_message") {
+                    const data = wsMsg.payload;
 
                     if (wsMsg.type === "error") {
                         alert("Ошибка сервера: " + wsMsg.error);
@@ -238,69 +286,65 @@
                     if (wsMsg.type === "new_message") {
                         const data = wsMsg.payload;
 
-                        // Обновляем список комнат при любом новом сообщении
-                        loadRooms();
+                    // Рисуем сообщение только если мы сейчас сидим в этой комнате
+                    if (data.room_id === currentRoomId) {
+                        printMsg(data, "");
 
-                        // Рисуем сообщение только если мы сейчас сидим в этой комнате
-                        if (data.room_id === currentRoomId) {
-                            printMsg(data, "");
+                        // Сбрасываем индикатор "печатает"
+                        document.getElementById("typingIndicator").innerText = "";
 
-                            // Сбрасываем индикатор "печатает"
-                            document.getElementById("typingIndicator").innerText = "";
+                        // Автоматически помечаем как прочитанное, если мы получатель
+                        if (data.sender_id !== currentUserId) {
+                            ws.send(JSON.stringify({
+                                type: "mark_as_read",
+                                payload: { message_id: data.id, room_id: currentRoomId }
+                            }));
+                        }
+                    } else {
+                        console.log("Новое сообщение в другой комнате:", data.room_id);
+                    }
+                } else if (wsMsg.type === "edit_message" || wsMsg.type === "delete_message" || wsMsg.type === "mark_as_read") {
+                    if (wsMsg.payload.room_id === currentRoomId) {
+                        // Простой хак для тестового клиента: просто перезагружаем історію чата,
+                        // чтобы отобразить все новые статусы (прочитано/изменено/удалено).
+                        connectToRoom(currentRoomId, currentOtherUserId);
+                    }
+                }
 
-                            // Автоматически помечаем как прочитанное, если мы получатель
-                            if (data.sender_id !== currentUserId) {
-                                ws.send(JSON.stringify({
-                                    type: "mark_as_read",
-                                    payload: { message_id: data.id, room_id: currentRoomId }
-                                }));
-                            }
+                if (wsMsg.type === "typing") {
+                    const data = wsMsg.payload;
+                    if (data.room_id === currentRoomId && data.user_id !== currentUserId) {
+                        const ind = document.getElementById("typingIndicator");
+                        if (data.is_typing) {
+                            ind.innerText = "Собеседник печатает...";
+                            clearTimeout(window.typingTimeout);
+                            window.typingTimeout = setTimeout(() => { ind.innerText = ""; }, 3000);
                         } else {
-                            console.log("Новое сообщение в другой комнате:", data.room_id);
-                        }
-                    } else if (wsMsg.type === "edit_message" || wsMsg.type === "delete_message" || wsMsg.type === "mark_as_read") {
-                        if (wsMsg.payload.room_id === currentRoomId) {
-                            // Простой хак для тестового клиента: просто перезагружаем історію чата,
-                            // чтобы отобразить все новые статусы (прочитано/изменено/удалено).
-                            connectToRoom(currentRoomId, currentOtherUserId);
+                            ind.innerText = "";
                         }
                     }
+                }
 
-                    if (wsMsg.type === "typing") {
-                        const data = wsMsg.payload;
-                        if (data.room_id === currentRoomId && data.user_id !== currentUserId) {
-                            const ind = document.getElementById("typingIndicator");
-                            if (data.is_typing) {
-                                ind.innerText = "Собеседник печатает...";
-                                clearTimeout(window.typingTimeout);
-                                window.typingTimeout = setTimeout(() => { ind.innerText = ""; }, 3000);
-                            } else {
-                                ind.innerText = "";
-                            }
-                        }
+                if (wsMsg.type === "presence") {
+                    const data = wsMsg.payload;
+                    // 1. Обязательно кэшируем статус в память браузера!
+                    userPresence[data.user_id] = data.status;
+
+                    // 2. Если сейчас открыт чат с этим собеседником — обновляем UI
+                    if (data.user_id === currentOtherUserId) {
+                        updateOnlineStatus(data.status);
                     }
+                }
+            };
 
-                    if (wsMsg.type === "presence") {
-                        const data = wsMsg.payload;
-                        // 1. Обязательно кэшируем статус в память браузера!
-                        userPresence[data.user_id] = data.status;
+            ws.onclose = () => {
+                console.log("WS Отключен");
+                document.getElementById("msg").disabled = true;
+                document.getElementById("sendBtn").disabled = true;
+                document.getElementById("uploadBtn").disabled = true;
+            };
 
-                        // 2. Если сейчас открыт чат с этим собеседником — обновляем UI
-                        if (data.user_id === currentOtherUserId) {
-                            updateOnlineStatus(data.status);
-                        }
-                    }
-                };
-
-                ws.onclose = () => {
-                    console.log("WS Отключен");
-                    document.getElementById("msg").disabled = true;
-                    document.getElementById("sendBtn").disabled = true;
-                    document.getElementById("uploadBtn").disabled = true;
-                };
-
-                loadRooms();
-            }
+            loadRooms();
         }
 
 
@@ -366,6 +410,87 @@
             }
         }
 
+        // ----- ПОИСК -----
+        async function searchMessages() {
+            const query = document.getElementById("searchQuery").value;
+            if (!query.trim()) return;
+
+            try {
+                const searchUrl = `${protocol}//${host}/api/v1/conversations/search?q=${encodeURIComponent(query.trim())}`;
+                const res = await fetch(searchUrl, {
+                    headers: { 'Authorization': 'Bearer ' + accessToken }
+                });
+
+                const list = document.getElementById("searchResults");
+                list.replaceChildren();
+
+                if (res.ok) {
+                    const data = await res.json();
+                    if (!data.items || data.items.length === 0) {
+                        const empty = document.createElement("li");
+                        empty.textContent = "Ничего не найдено";
+                        list.appendChild(empty);
+                        return;
+                    }
+                    data.items.forEach(item => {
+                        const li = document.createElement("li");
+                        li.className = "chat-item";
+                        li.style.fontSize = "0.85em";
+                        li.innerText = `Комната ${item.room_id}\nСообщение: ${item.content}`;
+                        li.onclick = () => {
+                            loadContext(item.room_id, item.id);
+                        };
+                        list.appendChild(li);
+                    });
+                } else {
+                    alert("Ошибка поиска: " + await res.text());
+                }
+            } catch (e) {
+                alert("Ошибка поиска: " + e);
+            }
+        }
+
+        async function loadContext(roomId, aroundId) {
+            currentRoomId = roomId;
+            currentOtherUserId = null; // We don't necessarily know it
+            document.getElementById("chatTitle").innerText = `Контекст сообщения ${aroundId} (Комната ${roomId})`;
+            document.getElementById("chat").replaceChildren();
+
+            try {
+                const contextUrl = `${protocol}//${host}/api/v1/conversations/${roomId}/messages?around=${aroundId}&limit=50`;
+                const res = await fetch(contextUrl, {
+                    headers: { 'Authorization': 'Bearer ' + accessToken }
+                });
+                if (res.ok) {
+                    const page = await res.json();
+                    const msgs = page.items || page;
+                    if (msgs && msgs.length > 0) {
+                        msgs.forEach(data => {
+                            printMsg(data, "");
+                            if (data.id === aroundId) {
+                                const msgDiv = document.getElementById("msg-" + data.id);
+                                if (msgDiv) msgDiv.style.border = "2px solid orange";
+                            }
+                        });
+                    } else {
+                        printMsg({ sender_id: "system", content: "Сообщений не найдено." }, "system");
+                    }
+                } else {
+                    alert("Ошибка загрузки контекста: " + await res.text());
+                }
+            } catch (e) {
+                console.error("Ошибка загрузки контекста", e);
+            }
+
+            document.getElementById("msg").disabled = false;
+            document.getElementById("sendBtn").disabled = false;
+            if (attachmentsSupported) {
+                document.getElementById("uploadBtn").disabled = false;
+            } else {
+                document.getElementById("uploadBtn").disabled = true;
+            }
+        }
+
         // ----- WEBSOCKET -----
         async function connectToRoom(roomId, otherUserId) {
             currentRoomId = roomId;
@@ -410,32 +535,46 @@
 
             document.getElementById("msg").disabled = false;
             document.getElementById("sendBtn").disabled = false;
-            document.getElementById("uploadBtn").disabled = false;
+            if (attachmentsSupported) {
+                document.getElementById("uploadBtn").disabled = false;
+            } else {
+                document.getElementById("uploadBtn").disabled = true;
+            }
         }
 
         // ----- МЕДИА -----
         async function uploadMedia() {
             const files = document.getElementById("mediaFile").files;
             if (files.length === 0) return;
+            if (!currentRoomId) {
+                alert("Сначала выберите чат");
+                return;
+            }
 
             for (let i = 0; i < files.length; i++) {
                 const formData = new FormData();
                 formData.append("file", files[i]);
+                formData.append("roomId", currentRoomId);
 
                 document.getElementById("attachmentsPreview").innerText = `Загрузка файла ${i + 1} из ${files.length}...`;
 
                 try {
-                    const res = await fetch(mediaApiUrl, {
+                    const res = await fetch(`${protocol}//${host}/api/v1/media/chat-attachments`, {
                         method: "POST",
                         headers: {
-                            'Authorization': 'Bearer ' + accessToken
+                            'Authorization': 'Bearer ' + accessToken,
+                            'Idempotency-Key': crypto.randomUUID()
                         },
                         body: formData
                     });
 
                     if (res.ok) {
                         const data = await res.json();
-                        uploadedFiles.push(data.url);
+                        // Сохраняем uuid и mime-тип, как ожидает сервер в новом формате
+                        uploadedFiles.push({
+                            media_id: data.mediaId,
+                            media_type: data.mimeType || files[i].type
+                        });
                     } else {
                         alert("Ошибка загрузки файла " + files[i].name + ": " + await res.text());
                     }
@@ -488,8 +627,9 @@
                 type: "new_message",
                 payload: {
                     room_id: currentRoomId,
+                    client_message_id: crypto.randomUUID(),
                     content: input.value,
-                    attachments: uploadedFiles.map(url => ({ url: url }))
+                    attachments: uploadedFiles
                 }
             };
 
@@ -589,14 +729,18 @@
                 const list = document.createElement("ul");
                 data.attachments.forEach(att => {
                     const item = document.createElement("li");
-                    const url = safeMediaUrl(att.url);
-                    if (url) {
-                        const button = document.createElement("button");
-                        button.textContent = "Скачать файл (без предпросмотра)";
-                        button.onclick = () => downloadMedia(url, button);
-                        item.appendChild(button);
+                    if (att.media_id) {
+                        item.textContent = `Медиа файл: ${att.media_id} (${att.media_type || 'неизвестно'})`;
                     } else {
-                        item.textContent = "Недопустимая ссылка на вложение";
+                        const url = safeMediaUrl(att.url);
+                        if (url) {
+                            const button = document.createElement("button");
+                            button.textContent = "Скачать файл (без предпросмотра)";
+                            button.onclick = () => downloadMedia(url, button);
+                            item.appendChild(button);
+                        } else {
+                            item.textContent = "Недопустимая ссылка на вложение";
+                        }
                     }
                     list.appendChild(item);
                 });

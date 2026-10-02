@@ -46,6 +46,12 @@ func (m *MockMessageRepo) UpdateContent(ctx context.Context, messageID int64, ne
 func (m *MockMessageRepo) SoftDelete(ctx context.Context, messageID int64, deletedAt time.Time, userID uuid.UUID) error {
 	return nil
 }
+func (m *MockMessageRepo) SearchByUser(ctx context.Context, userID uuid.UUID, query string, cursor string, limit int) (*domain.MessagePage, error) {
+	return nil, nil
+}
+func (m *MockMessageRepo) GetAround(ctx context.Context, roomID int64, aroundID int64, limit int) (*domain.MessagePage, error) {
+	return nil, nil
+}
 func (m *MockRoomRepo) CreateRoom(ctx context.Context, user1ID, user2ID uuid.UUID) (*domain.Room, error) {
 	room := &domain.Room{
 		ID:        1,

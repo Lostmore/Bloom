@@ -3,11 +3,9 @@
   "x-bloom-guide": "chat-websocket-v2",
   "info": {
     "title": "Bloom Chat WebSocket",
-    "version": "2.0.0",
-    "description": "Контракт текущего Go Chat. Все WebSocket-пакеты используют type и payload; ошибка содержит type и error на верхнем уровне. Старый JSON без type больше не обрабатывается.\n\nПодключение: получить accessToken в Identity, список комнат через GET /api/v1/conversations с Authorization: Bearer <accessToken>. Открыть /api/v1/ws?token=<accessToken> через Gateway (ws для HTTP, wss для HTTPS). Токен URL-кодировать, без Bearer. Не писать URL с токеном в логи.\n\nОдно соединение получает события всех комнат пользователя. История приходит отдельно через GET /api/v1/conversations/{id}/messages. После переподключения загрузить комнаты и историю заново, объединяя сообщения по id. RECEIVE/SEND в полной схеме указаны со стороны сервера.\n\nПри отправке сервер проверяет участника и активность комнаты. Ошибка сохранения возвращает error отправителю без рассылки new_message. У edit_message, delete_message и mark_as_read сервер возвращает исходный payload, без серверного времени и ID инициатора: точные edited_at/deleted_at/read_at получать из HTTP-истории. Повторное прочтение перезаписывает read_at. room_id действий передаётся клиентом; текущие UPDATE-запросы используют message_id и пользователя, но не сверяют room_id с комнатой сообщения.\n\nPresence отражает подключения к текущему процессу Chat, не настройки приватности и не last_seen. Нет client_message_id, корреляции ошибок, гарантированного воспроизведения пропущенных событий. Неизвестный type и некорректный payload могут игнорироваться без ответа. Невалидный JSON пакета закрывает соединение. Проверка прав на вложения в SendMessage пока отсутствует. Не повторять неподтверждённую отправку автоматически: возможны дубли.",
-    "license": {
-      "name": "Proprietary"
-    }
+    "version": "1.1.0",
+    "description": "Контракт обновленного Go Chat с использованием обертки type/payload. Операции описаны со стороны сервера: receive — сервер получает данные от приложения, send — сервер отправляет их приложению.\n\n## Подключение фронтенда\n1. Получить accessToken через Identity в Swagger.\n2. Получить комнаты: GET /api/v1/conversations с Authorization: Bearer <accessToken>.\n3. Открыть ws://<адрес-gateway>/api/v1/ws?token=<accessToken> (для HTTPS использовать wss). Передавать только accessToken, без префикса Bearer. Служебный токен Identity клиенту не нужен. Не сохранять URL с токеном в логах.\n4. Одно соединение получает события всех комнат пользователя. room_id передаётся в отправляемом JSON, а не в URL подключения.\n5. Историю загружать отдельно: GET /api/v1/conversations/{id}/messages с Bearer-токеном.\n\n## Обёртка WSMessage\nВсе сообщения оборачиваются в объект с полями `type`, `payload` (JSON) и опционально `error`. Например:\n```json\n{\n  \"type\": \"new_message\",\n  \"payload\": { \"room_id\": 15, \"content\": \"Привет!\" }\n}\n```",
+    "license": { "name": "Proprietary" }
   },
   "defaultContentType": "application/json",
   "servers": {
@@ -30,12 +28,8 @@
   "channels": {
     "chat": {
       "address": "/api/v1/ws",
-      "description": "Общее соединение пользователя. Chat определяет отправителя по токену и подписывает соединение на его комнаты. История при подключении не передаётся.",
-      "servers": [
-        {
-          "$ref": "#/servers/gateway"
-        }
-      ],
+      "description": "Общее соединение пользователя. Chat определяет отправителя по токену и подписывает соединение на его комнаты.",
+      "servers": [{ "$ref": "#/servers/gateway" }],
       "bindings": {
         "ws": {
           "method": "GET",
@@ -55,204 +49,23 @@
         }
       },
       "messages": {
-        "SendMessage": {
-          "$ref": "#/components/messages/SendMessage"
-        },
-        "ChatMessage": {
-          "$ref": "#/components/messages/ChatMessage"
-        },
-        "RoomChanged": {
-          "$ref": "#/components/messages/RoomChanged"
-        },
-        "edit_messageRequest": {
-          "$ref": "#/components/messages/edit_messageRequest"
-        },
-        "edit_messageEvent": {
-          "$ref": "#/components/messages/edit_messageEvent"
-        },
-        "delete_messageRequest": {
-          "$ref": "#/components/messages/delete_messageRequest"
-        },
-        "delete_messageEvent": {
-          "$ref": "#/components/messages/delete_messageEvent"
-        },
-        "mark_as_readRequest": {
-          "$ref": "#/components/messages/mark_as_readRequest"
-        },
-        "mark_as_readEvent": {
-          "$ref": "#/components/messages/mark_as_readEvent"
-        },
-        "TypingRequest": {
-          "$ref": "#/components/messages/TypingRequest"
-        },
-        "TypingEvent": {
-          "$ref": "#/components/messages/TypingEvent"
-        },
-        "PresenceEvent": {
-          "$ref": "#/components/messages/PresenceEvent"
-        },
-        "ErrorEvent": {
-          "$ref": "#/components/messages/ErrorEvent"
-        }
+        "clientEvents": { "$ref": "#/components/messages/ClientEvents" },
+        "serverEvents": { "$ref": "#/components/messages/ServerEvents" }
       }
     }
   },
   "operations": {
-    "receiveMessage": {
+    "receiveFromClient": {
       "action": "receive",
-      "summary": "Отправить сообщение",
-      "channel": {
-        "$ref": "#/channels/chat"
-      },
-      "messages": [
-        {
-          "$ref": "#/channels/chat/messages/SendMessage"
-        }
-      ]
+      "summary": "Сервер получает события от клиента",
+      "channel": { "$ref": "#/channels/chat" },
+      "messages": [{ "$ref": "#/channels/chat/messages/clientEvents" }]
     },
-    "deliverMessage": {
+    "sendToClient": {
       "action": "send",
-      "summary": "Получить сообщение",
-      "channel": {
-        "$ref": "#/channels/chat"
-      },
-      "messages": [
-        {
-          "$ref": "#/channels/chat/messages/ChatMessage"
-        }
-      ]
-    },
-    "notifyRoomChanged": {
-      "action": "send",
-      "summary": "Обновить список комнат",
-      "channel": {
-        "$ref": "#/channels/chat"
-      },
-      "messages": [
-        {
-          "$ref": "#/channels/chat/messages/RoomChanged"
-        }
-      ]
-    },
-    "edit_messageRequest": {
-      "action": "receive",
-      "summary": "Редактирование сообщения",
-      "channel": {
-        "$ref": "#/channels/chat"
-      },
-      "messages": [
-        {
-          "$ref": "#/channels/chat/messages/edit_messageRequest"
-        }
-      ]
-    },
-    "edit_messageEvent": {
-      "action": "send",
-      "summary": "Редактирование: обновить переписку",
-      "channel": {
-        "$ref": "#/channels/chat"
-      },
-      "messages": [
-        {
-          "$ref": "#/channels/chat/messages/edit_messageEvent"
-        }
-      ]
-    },
-    "delete_messageRequest": {
-      "action": "receive",
-      "summary": "Удаление сообщения",
-      "channel": {
-        "$ref": "#/channels/chat"
-      },
-      "messages": [
-        {
-          "$ref": "#/channels/chat/messages/delete_messageRequest"
-        }
-      ]
-    },
-    "delete_messageEvent": {
-      "action": "send",
-      "summary": "Удаление: обновить переписку",
-      "channel": {
-        "$ref": "#/channels/chat"
-      },
-      "messages": [
-        {
-          "$ref": "#/channels/chat/messages/delete_messageEvent"
-        }
-      ]
-    },
-    "mark_as_readRequest": {
-      "action": "receive",
-      "summary": "Прочтение сообщения",
-      "channel": {
-        "$ref": "#/channels/chat"
-      },
-      "messages": [
-        {
-          "$ref": "#/channels/chat/messages/mark_as_readRequest"
-        }
-      ]
-    },
-    "mark_as_readEvent": {
-      "action": "send",
-      "summary": "Прочтение: обновить переписку",
-      "channel": {
-        "$ref": "#/channels/chat"
-      },
-      "messages": [
-        {
-          "$ref": "#/channels/chat/messages/mark_as_readEvent"
-        }
-      ]
-    },
-    "TypingRequest": {
-      "action": "receive",
-      "summary": "Передать набор текста",
-      "channel": {
-        "$ref": "#/channels/chat"
-      },
-      "messages": [
-        {
-          "$ref": "#/channels/chat/messages/TypingRequest"
-        }
-      ]
-    },
-    "TypingEvent": {
-      "action": "send",
-      "summary": "Показать набор текста",
-      "channel": {
-        "$ref": "#/channels/chat"
-      },
-      "messages": [
-        {
-          "$ref": "#/channels/chat/messages/TypingEvent"
-        }
-      ]
-    },
-    "PresenceEvent": {
-      "action": "send",
-      "summary": "Обновить онлайн-статус",
-      "channel": {
-        "$ref": "#/channels/chat"
-      },
-      "messages": [
-        {
-          "$ref": "#/channels/chat/messages/PresenceEvent"
-        }
-      ]
-    },
-    "ErrorEvent": {
-      "action": "send",
-      "summary": "Ошибка действия",
-      "channel": {
-        "$ref": "#/channels/chat"
-      },
-      "messages": [
-        {
-          "$ref": "#/channels/chat/messages/ErrorEvent"
-        }
-      ]
+      "summary": "Сервер отправляет события клиенту",
+      "channel": { "$ref": "#/channels/chat" },
+      "messages": [{ "$ref": "#/channels/chat/messages/serverEvents" }]
     }
   },
   "components": {
@@ -266,7 +79,6 @@
     "schemas": {
       "Attachment": {
         "type": "object",
-        "description": "Текущий формат Go. Новый безопасный контракт вложений с mediaId пока не реализован. Не вставлять URL и содержимое в innerHTML.",
         "properties": {
           "id": {
             "type": "integer",
@@ -350,669 +162,50 @@
       }
     },
     "messages": {
-      "SendMessage": {
-        "name": "SendMessage",
-        "title": "Отправить сообщение",
-        "description": "Текст либо вложения внутри payload. Не передавать серверные поля sender_id, id, created_at и отметки времени действий.",
+      "ClientEvents": {
+        "name": "ClientEvents",
+        "title": "События от клиента",
         "payload": {
           "type": "object",
-          "required": [
-            "type",
-            "payload"
-          ],
+          "required": ["type"],
           "properties": {
-            "type": {
-              "type": "string",
-              "const": "new_message",
-              "description": "Тип события: new_message"
-            },
+            "type": { "type": "string", "enum": ["new_message", "edit_message", "delete_message", "mark_as_read", "typing"] },
             "payload": {
-              "type": "object",
-              "required": [
-                "room_id"
-              ],
-              "properties": {
-                "room_id": {
-                  "type": "integer",
-                  "format": "int64",
-                  "minimum": 1,
-                  "description": "ID доступной комнаты из GET /api/v1/conversations."
-                },
-                "content": {
-                  "type": "string",
-                  "description": "Текст не должен состоять только из пробелов, если вложений нет."
-                },
-                "attachments": {
-                  "type": "array",
-                  "description": "Массив вложений в текущем формате Attachment. Для обычного текста поле не нужно.",
-                  "items": {
-                    "$ref": "#/components/schemas/Attachment"
-                  }
-                }
-              },
-              "anyOf": [
+              "oneOf": [
                 {
-                  "required": [
-                    "content"
-                  ],
+                  "type": "object",
+                  "required": ["room_id"],
                   "properties": {
-                    "content": {
-                      "minLength": 1
-                    }
+                    "room_id": { "type": "integer", "format": "int64" },
+                    "content": { "type": "string" }
                   }
                 },
-                {
-                  "required": [
-                    "attachments"
-                  ],
-                  "properties": {
-                    "attachments": {
-                      "minItems": 1
-                    }
-                  }
-                }
+                { "$ref": "#/components/schemas/MessageActionPayload" },
+                { "$ref": "#/components/schemas/TypingPayload" }
               ]
             }
           }
-        },
-        "examples": [
-          {
-            "payload": {
-              "type": "new_message",
-              "payload": {
-                "room_id": 15,
-                "content": "Привет!"
-              }
-            }
-          }
-        ]
+        }
       },
-      "ChatMessage": {
-        "name": "ChatMessage",
-        "title": "Получить сообщение",
-        "description": "Рассылается участникам, включая отправителя, после успешного сохранения. Объединять с историей по payload.id.",
+      "ServerEvents": {
+        "name": "ServerEvents",
+        "title": "События от сервера",
         "payload": {
           "type": "object",
-          "required": [
-            "type",
-            "payload"
-          ],
+          "required": ["type"],
           "properties": {
-            "type": {
-              "type": "string",
-              "const": "new_message",
-              "description": "Тип события: new_message"
-            },
+            "type": { "type": "string", "enum": ["new_message", "edit_message", "delete_message", "mark_as_read", "typing", "presence", "error"] },
+            "error": { "type": "string", "description": "Присутствует при type = error" },
             "payload": {
-              "$ref": "#/components/schemas/Message"
+              "oneOf": [
+                { "$ref": "#/components/schemas/Message" },
+                { "$ref": "#/components/schemas/MessageActionPayload" },
+                { "$ref": "#/components/schemas/TypingPayload" },
+                { "$ref": "#/components/schemas/PresencePayload" }
+              ]
             }
           }
-        },
-        "examples": [
-          {
-            "payload": {
-              "type": "new_message",
-              "payload": {
-                "id": 101,
-                "room_id": 15,
-                "sender_id": "4e57b536-824c-4b9a-a345-ecaf52de478a",
-                "content": "Привет!",
-                "created_at": "2026-10-01T10:00:00Z"
-              }
-            }
-          }
-        ]
-      },
-      "RoomChanged": {
-        "name": "RoomChanged",
-        "title": "Обновить список комнат",
-        "description": "После REST создания/получения комнаты приходит new_message с payload.id=0. Обновить список комнат через HTTP; не добавлять в историю и не отображать нулевое время.",
-        "payload": {
-          "type": "object",
-          "required": [
-            "type",
-            "payload"
-          ],
-          "properties": {
-            "type": {
-              "type": "string",
-              "const": "new_message",
-              "description": "Тип события: new_message"
-            },
-            "payload": {
-              "$ref": "#/components/schemas/Message"
-            }
-          }
-        },
-        "examples": [
-          {
-            "payload": {
-              "type": "new_message",
-              "payload": {
-                "id": 0,
-                "room_id": 15,
-                "sender_id": "4e57b536-824c-4b9a-a345-ecaf52de478a",
-                "content": "Чат создан",
-                "created_at": "0001-01-01T00:00:00Z"
-              }
-            }
-          }
-        ]
-      },
-      "edit_messageRequest": {
-        "name": "edit_messageRequest",
-        "title": "Редактирование сообщения",
-        "description": "Только автор сообщения. room_id должен соответствовать message_id.",
-        "payload": {
-          "type": "object",
-          "required": [
-            "type",
-            "payload"
-          ],
-          "properties": {
-            "type": {
-              "type": "string",
-              "const": "edit_message",
-              "description": "Тип события: edit_message"
-            },
-            "payload": {
-              "type": "object",
-              "required": [
-                "room_id",
-                "message_id",
-                "content"
-              ],
-              "properties": {
-                "room_id": {
-                  "type": "integer",
-                  "format": "int64",
-                  "minimum": 1,
-                  "description": "ID доступной комнаты из GET /api/v1/conversations."
-                },
-                "message_id": {
-                  "type": "integer",
-                  "format": "int64",
-                  "minimum": 1,
-                  "description": "ID сообщения именно в указанной комнате."
-                },
-                "content": {
-                  "type": "string",
-                  "minLength": 1,
-                  "description": "Новый текст, не только пробелы."
-                }
-              }
-            }
-          }
-        },
-        "examples": [
-          {
-            "payload": {
-              "type": "edit_message",
-              "payload": {
-                "room_id": 15,
-                "message_id": 101,
-                "content": "Исправленный текст"
-              }
-            }
-          }
-        ]
-      },
-      "edit_messageEvent": {
-        "name": "edit_messageEvent",
-        "title": "Редактирование: обновить переписку",
-        "description": "Рассылка участникам, включая инициатора, после успешного UPDATE. Возвращается исходный payload без серверных времён и reader_id. Для точного состояния повторно получить историю; это не накопительная отметка всей комнаты.",
-        "payload": {
-          "type": "object",
-          "required": [
-            "type",
-            "payload"
-          ],
-          "properties": {
-            "type": {
-              "type": "string",
-              "const": "edit_message",
-              "description": "Тип события: edit_message"
-            },
-            "payload": {
-              "type": "object",
-              "required": [
-                "room_id",
-                "message_id",
-                "content"
-              ],
-              "properties": {
-                "room_id": {
-                  "type": "integer",
-                  "format": "int64",
-                  "minimum": 1,
-                  "description": "ID доступной комнаты из GET /api/v1/conversations."
-                },
-                "message_id": {
-                  "type": "integer",
-                  "format": "int64",
-                  "minimum": 1,
-                  "description": "ID сообщения именно в указанной комнате."
-                },
-                "content": {
-                  "type": "string",
-                  "minLength": 1,
-                  "description": "Новый текст, не только пробелы."
-                }
-              }
-            }
-          }
-        },
-        "examples": [
-          {
-            "payload": {
-              "type": "edit_message",
-              "payload": {
-                "room_id": 15,
-                "message_id": 101,
-                "content": "Исправленный текст"
-              }
-            }
-          }
-        ]
-      },
-      "delete_messageRequest": {
-        "name": "delete_messageRequest",
-        "title": "Удаление сообщения",
-        "description": "Только автор сообщения. room_id должен соответствовать message_id.",
-        "payload": {
-          "type": "object",
-          "required": [
-            "type",
-            "payload"
-          ],
-          "properties": {
-            "type": {
-              "type": "string",
-              "const": "delete_message",
-              "description": "Тип события: delete_message"
-            },
-            "payload": {
-              "type": "object",
-              "required": [
-                "room_id",
-                "message_id"
-              ],
-              "properties": {
-                "room_id": {
-                  "type": "integer",
-                  "format": "int64",
-                  "minimum": 1,
-                  "description": "ID доступной комнаты из GET /api/v1/conversations."
-                },
-                "message_id": {
-                  "type": "integer",
-                  "format": "int64",
-                  "minimum": 1,
-                  "description": "ID сообщения именно в указанной комнате."
-                }
-              }
-            }
-          }
-        },
-        "examples": [
-          {
-            "payload": {
-              "type": "delete_message",
-              "payload": {
-                "room_id": 15,
-                "message_id": 101
-              }
-            }
-          }
-        ]
-      },
-      "delete_messageEvent": {
-        "name": "delete_messageEvent",
-        "title": "Удаление: обновить переписку",
-        "description": "Рассылка участникам, включая инициатора, после успешного UPDATE. Возвращается исходный payload без серверных времён и reader_id. Для точного состояния повторно получить историю; это не накопительная отметка всей комнаты.",
-        "payload": {
-          "type": "object",
-          "required": [
-            "type",
-            "payload"
-          ],
-          "properties": {
-            "type": {
-              "type": "string",
-              "const": "delete_message",
-              "description": "Тип события: delete_message"
-            },
-            "payload": {
-              "type": "object",
-              "required": [
-                "room_id",
-                "message_id"
-              ],
-              "properties": {
-                "room_id": {
-                  "type": "integer",
-                  "format": "int64",
-                  "minimum": 1,
-                  "description": "ID доступной комнаты из GET /api/v1/conversations."
-                },
-                "message_id": {
-                  "type": "integer",
-                  "format": "int64",
-                  "minimum": 1,
-                  "description": "ID сообщения именно в указанной комнате."
-                }
-              }
-            }
-          }
-        },
-        "examples": [
-          {
-            "payload": {
-              "type": "delete_message",
-              "payload": {
-                "room_id": 15,
-                "message_id": 101
-              }
-            }
-          }
-        ]
-      },
-      "mark_as_readRequest": {
-        "name": "mark_as_readRequest",
-        "title": "Прочтение сообщения",
-        "description": "Участник комнаты отмечает чужое сообщение; своё отметить нельзя. Отмечать только действительно показанное сообщение. room_id должен соответствовать message_id.",
-        "payload": {
-          "type": "object",
-          "required": [
-            "type",
-            "payload"
-          ],
-          "properties": {
-            "type": {
-              "type": "string",
-              "const": "mark_as_read",
-              "description": "Тип события: mark_as_read"
-            },
-            "payload": {
-              "type": "object",
-              "required": [
-                "room_id",
-                "message_id"
-              ],
-              "properties": {
-                "room_id": {
-                  "type": "integer",
-                  "format": "int64",
-                  "minimum": 1,
-                  "description": "ID доступной комнаты из GET /api/v1/conversations."
-                },
-                "message_id": {
-                  "type": "integer",
-                  "format": "int64",
-                  "minimum": 1,
-                  "description": "ID сообщения именно в указанной комнате."
-                }
-              }
-            }
-          }
-        },
-        "examples": [
-          {
-            "payload": {
-              "type": "mark_as_read",
-              "payload": {
-                "room_id": 15,
-                "message_id": 101
-              }
-            }
-          }
-        ]
-      },
-      "mark_as_readEvent": {
-        "name": "mark_as_readEvent",
-        "title": "Прочтение: обновить переписку",
-        "description": "Рассылка участникам, включая инициатора, после успешного UPDATE. Возвращается исходный payload без серверных времён и reader_id. Для точного состояния повторно получить историю; это не накопительная отметка всей комнаты.",
-        "payload": {
-          "type": "object",
-          "required": [
-            "type",
-            "payload"
-          ],
-          "properties": {
-            "type": {
-              "type": "string",
-              "const": "mark_as_read",
-              "description": "Тип события: mark_as_read"
-            },
-            "payload": {
-              "type": "object",
-              "required": [
-                "room_id",
-                "message_id"
-              ],
-              "properties": {
-                "room_id": {
-                  "type": "integer",
-                  "format": "int64",
-                  "minimum": 1,
-                  "description": "ID доступной комнаты из GET /api/v1/conversations."
-                },
-                "message_id": {
-                  "type": "integer",
-                  "format": "int64",
-                  "minimum": 1,
-                  "description": "ID сообщения именно в указанной комнате."
-                }
-              }
-            }
-          }
-        },
-        "examples": [
-          {
-            "payload": {
-              "type": "mark_as_read",
-              "payload": {
-                "room_id": 15,
-                "message_id": 101
-              }
-            }
-          }
-        ]
-      },
-      "TypingRequest": {
-        "name": "TypingRequest",
-        "title": "Передать набор текста",
-        "description": "Передавать true/false. user_id сервер подставляет из токена. Ограничивай частоту отправки на клиенте.",
-        "payload": {
-          "type": "object",
-          "required": [
-            "type",
-            "payload"
-          ],
-          "properties": {
-            "type": {
-              "type": "string",
-              "const": "typing",
-              "description": "Тип события: typing"
-            },
-            "payload": {
-              "type": "object",
-              "required": [
-                "room_id",
-                "is_typing"
-              ],
-              "properties": {
-                "room_id": {
-                  "type": "integer",
-                  "format": "int64",
-                  "minimum": 1,
-                  "description": "ID доступной комнаты из GET /api/v1/conversations."
-                },
-                "is_typing": {
-                  "type": "boolean",
-                  "description": "true — печатает; false — перестал печатать."
-                }
-              }
-            }
-          }
-        },
-        "examples": [
-          {
-            "payload": {
-              "type": "typing",
-              "payload": {
-                "room_id": 15,
-                "is_typing": true
-              }
-            }
-          }
-        ]
-      },
-      "TypingEvent": {
-        "name": "TypingEvent",
-        "title": "Показать набор текста",
-        "description": "Получают соединения комнаты, кроме отправившего соединения. Не сохраняется; скрывать индикатор по таймауту, если false не пришёл.",
-        "payload": {
-          "type": "object",
-          "required": [
-            "type",
-            "payload"
-          ],
-          "properties": {
-            "type": {
-              "type": "string",
-              "const": "typing",
-              "description": "Тип события: typing"
-            },
-            "payload": {
-              "type": "object",
-              "required": [
-                "room_id",
-                "is_typing",
-                "user_id"
-              ],
-              "properties": {
-                "room_id": {
-                  "type": "integer",
-                  "format": "int64",
-                  "minimum": 1,
-                  "description": "ID доступной комнаты из GET /api/v1/conversations."
-                },
-                "is_typing": {
-                  "type": "boolean",
-                  "description": "true — печатает; false — перестал печатать."
-                },
-                "user_id": {
-                  "type": "string",
-                  "format": "uuid",
-                  "description": "ID пользователя из авторизованного соединения."
-                }
-              }
-            }
-          }
-        },
-        "examples": [
-          {
-            "payload": {
-              "type": "typing",
-              "payload": {
-                "room_id": 15,
-                "user_id": "4e57b536-824c-4b9a-a345-ecaf52de478a",
-                "is_typing": true
-              }
-            }
-          }
-        ]
-      },
-      "PresenceEvent": {
-        "name": "PresenceEvent",
-        "title": "Обновить онлайн-статус",
-        "description": "online при первом подключении пользователя, offline после закрытия последнего. При подключении приходят online для уже подключённых собеседников, возможны повторы для нескольких соединений. Нет last_seen и учёта скрытой активности.",
-        "payload": {
-          "type": "object",
-          "required": [
-            "type",
-            "payload"
-          ],
-          "properties": {
-            "type": {
-              "type": "string",
-              "const": "presence",
-              "description": "Тип события: presence"
-            },
-            "payload": {
-              "type": "object",
-              "required": [
-                "room_id",
-                "user_id",
-                "status"
-              ],
-              "properties": {
-                "room_id": {
-                  "type": "integer",
-                  "format": "int64",
-                  "minimum": 1,
-                  "description": "ID доступной комнаты из GET /api/v1/conversations."
-                },
-                "user_id": {
-                  "type": "string",
-                  "format": "uuid",
-                  "description": "ID пользователя из авторизованного соединения."
-                },
-                "status": {
-                  "type": "string",
-                  "enum": [
-                    "online",
-                    "offline"
-                  ],
-                  "description": "Наличие WebSocket-подключений в текущем процессе Chat."
-                }
-              }
-            }
-          }
-        },
-        "examples": [
-          {
-            "payload": {
-              "type": "presence",
-              "payload": {
-                "room_id": 15,
-                "user_id": "4e57b536-824c-4b9a-a345-ecaf52de478a",
-                "status": "online"
-              }
-            }
-          }
-        ]
-      },
-      "ErrorEvent": {
-        "name": "ErrorEvent",
-        "title": "Ошибка действия",
-        "description": "Получает только отправитель при ошибке new_message/edit_message/delete_message/mark_as_read. error — текст, не стабильный код; нет room_id, message_id или request_id для корреляции. Не считать отсутствие ошибки подтверждением выполнения.",
-        "payload": {
-          "type": "object",
-          "required": [
-            "type",
-            "error"
-          ],
-          "properties": {
-            "type": {
-              "type": "string",
-              "const": "error"
-            },
-            "error": {
-              "type": "string",
-              "description": "Текст ошибки сервиса или репозитория; формат не стабилен."
-            }
-          }
-        },
-        "examples": [
-          {
-            "payload": {
-              "type": "error",
-              "error": "room is not active"
-            }
-          }
-        ]
+        }
       }
     }
   }
