@@ -1,6 +1,6 @@
 {
   "asyncapi": "3.0.0",
-  "x-bloom-guide": "chat-websocket-v1",
+  "x-bloom-guide": "chat-websocket-v2",
   "info": {
     "title": "Bloom Chat WebSocket",
     "version": "1.1.0",
@@ -13,8 +13,16 @@
       "host": "{gatewayHost}",
       "protocol": "ws",
       "description": "Публичный API Gateway. На странице документации адрес заменяется текущим адресом браузера; при HTTPS используется wss.",
-      "variables": { "gatewayHost": { "default": "localhost:8080" } },
-      "security": [{ "$ref": "#/components/securitySchemes/accessToken" }]
+      "variables": {
+        "gatewayHost": {
+          "default": "localhost:8080"
+        }
+      },
+      "security": [
+        {
+          "$ref": "#/components/securitySchemes/accessToken"
+        }
+      ]
     }
   },
   "channels": {
@@ -27,8 +35,15 @@
           "method": "GET",
           "query": {
             "type": "object",
-            "required": ["token"],
-            "properties": { "token": { "type": "string", "description": "Access token пользователя без Bearer; URL-кодировать значение." } }
+            "required": [
+              "token"
+            ],
+            "properties": {
+              "token": {
+                "type": "string",
+                "description": "Access token пользователя без Bearer; URL-кодировать значение."
+              }
+            }
           },
           "bindingVersion": "0.1.0"
         }
@@ -55,59 +70,94 @@
   },
   "components": {
     "securitySchemes": {
-      "accessToken": { "type": "httpApiKey", "in": "query", "name": "token" }
+      "accessToken": {
+        "type": "httpApiKey",
+        "in": "query",
+        "name": "token"
+      }
     },
     "schemas": {
       "Attachment": {
         "type": "object",
         "properties": {
-          "id": { "type": "integer", "format": "int64" },
-          "message_id": { "type": "integer", "format": "int64" },
-          "url": { "type": "string" },
-          "media_type": { "type": "string" },
-          "created_at": { "type": "string", "format": "date-time" }
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "message_id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "В свежем WS-событии может быть 0: Save не заполняет это поле в объекте. Используй payload.id; HTTP-история содержит связь из БД."
+          },
+          "url": {
+            "type": "string"
+          },
+          "media_type": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
         }
       },
       "Message": {
         "type": "object",
-        "required": ["id", "room_id", "sender_id", "content", "created_at"],
+        "required": [
+          "id",
+          "room_id",
+          "sender_id",
+          "content",
+          "created_at"
+        ],
         "properties": {
-          "id": { "type": "integer", "format": "int64", "minimum": 0 },
-          "room_id": { "type": "integer", "format": "int64" },
-          "sender_id": { "type": "string", "format": "uuid" },
-          "content": { "type": "string" },
-          "attachments": { "type": "array", "items": { "$ref": "#/components/schemas/Attachment" } },
-          "created_at": { "type": "string", "format": "date-time" },
-          "edited_at": { "type": "string", "format": "date-time" },
-          "deleted_at": { "type": "string", "format": "date-time" },
-          "read_at": { "type": "string", "format": "date-time" }
-        }
-      },
-      "MessageActionPayload": {
-        "type": "object",
-        "required": ["message_id", "room_id"],
-        "properties": {
-          "message_id": { "type": "integer", "format": "int64" },
-          "room_id": { "type": "integer", "format": "int64" },
-          "content": { "type": "string", "description": "Передается только при type = edit_message" }
-        }
-      },
-      "TypingPayload": {
-        "type": "object",
-        "required": ["room_id", "is_typing"],
-        "properties": {
-          "room_id": { "type": "integer", "format": "int64" },
-          "user_id": { "type": "string", "format": "uuid", "description": "Заполняется сервером, клиент не передает" },
-          "is_typing": { "type": "boolean" }
-        }
-      },
-      "PresencePayload": {
-        "type": "object",
-        "required": ["user_id", "status"],
-        "properties": {
-          "room_id": { "type": "integer", "format": "int64" },
-          "user_id": { "type": "string", "format": "uuid" },
-          "status": { "type": "string", "enum": ["online", "offline"] }
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "description": "Положительный ID для сообщения; 0 для уведомления о комнате. Пакет с id=0 не сохранять как сообщение."
+          },
+          "room_id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "ID комнаты: определяет, какую переписку обновить."
+          },
+          "sender_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "ID автора. Сравни с ID текущего пользователя, чтобы отличить своё сообщение от входящего."
+          },
+          "content": {
+            "type": "string",
+            "description": "Текст сообщения. Может быть пустым у сообщения с вложениями. Отображать как текст, не HTML."
+          },
+          "attachments": {
+            "type": "array",
+            "description": "Вложения сообщения. Поле может отсутствовать; структуру элемента смотри в полной схеме Attachment.",
+            "items": {
+              "$ref": "#/components/schemas/Attachment"
+            }
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Время сообщения с часовым поясом. У уведомления с id=0 здесь нулевое время Go, не показывай его пользователю."
+          },
+          "edited_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Серверное время из истории; поле отсутствует, если действие ещё не выполнено."
+          },
+          "deleted_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Серверное время из истории; поле отсутствует, если действие ещё не выполнено."
+          },
+          "read_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Серверное время из истории; поле отсутствует, если действие ещё не выполнено."
+          }
         }
       }
     },

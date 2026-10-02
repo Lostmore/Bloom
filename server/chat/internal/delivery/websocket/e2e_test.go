@@ -149,6 +149,7 @@ func TestE2EChat(t *testing.T) {
 		Payload: payloadBytes,
 	})
 	require.NoError(t, err)
+	require.Equal(t, "new_message", wsMsg1.Type)
 
 	// User 10 receives broadcast
 	wsMsg1 := readExpectedMessage(ws1, "new_message")

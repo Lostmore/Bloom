@@ -21,7 +21,7 @@ class ChatPreviews {
 
     fun record(message: ChatMessage) {
         mutable.update { current ->
-            if ((current[message.roomId]?.id ?: 0) >= message.id) current else current + (message.roomId to message)
+            if ((current[message.roomId]?.id ?: 0) > message.id) current else current + (message.roomId to message)
         }
     }
 

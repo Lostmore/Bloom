@@ -278,8 +278,13 @@
                 if (wsMsg.type === "new_message") {
                     const data = wsMsg.payload;
 
-                    // Обновляем список комнат при любом новом сообщении
-                    loadRooms();
+                    if (wsMsg.type === "error") {
+                        alert("Ошибка сервера: " + wsMsg.error);
+                        return;
+                    }
+
+                    if (wsMsg.type === "new_message") {
+                        const data = wsMsg.payload;
 
                     // Рисуем сообщение только если мы сейчас сидим в этой комнате
                     if (data.room_id === currentRoomId) {
