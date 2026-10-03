@@ -11,8 +11,11 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
@@ -44,6 +47,8 @@ fun ChatRoomScreen(
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val scope = rememberCoroutineScope()
     val list = rememberLazyListState()
+    val composerState = rememberSaveableStateHolder()
+    val searchFocus = remember { FocusRequester() }
     var partner by remember(roomId) { mutableStateOf("Собеседник") }
     var partnerId by remember(roomId, myId) { mutableStateOf<String?>(null) }
     var partnerProfile by remember(roomId) { mutableStateOf<app.bloom.android.core.model.Profile?>(null) }
@@ -54,6 +59,10 @@ fun ChatRoomScreen(
     var focused by remember(targetMessageId) { mutableStateOf(targetMessageId != null) }
     var jumped by remember(targetMessageId) { mutableStateOf(false) }
     var showSearch by remember { mutableStateOf(false) }
+    var searchList by remember { mutableStateOf(false) }
+    LaunchedEffect(showSearch) {
+        if (showSearch) searchFocus.requestFocus()
+    }
     var query by remember { mutableStateOf("") }
     var matchIndex by remember(query) { mutableIntStateOf(0) }
     var loadingHistory by remember(roomId) { mutableStateOf(true) }
@@ -123,14 +132,23 @@ fun ChatRoomScreen(
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Отмена") } },
         )
     val hits =
-        remember(messages, query) {
-            if (query.isBlank()) emptyList()
-            else
-                messages
-                    .filter { it.deletedAt == null && it.content.orEmpty().contains(query.trim(), true) }
-                    .map { it.id }
+        remember(state.messages, query) {
+            state.messages
+                .filter {
+                    it.deletedAt == null && (query.isBlank() || it.content.orEmpty().contains(query.trim(), true))
+                }
+                .sortedByDescending { it.id }
+                .map { it.id }
         }
+    val messagesById = remember(state.messages) { state.messages.associateBy { it.id } }
     val highlighted = if (showSearch) hits.getOrNull(matchIndex) else if (focused) targetMessageId else null
+    BackHandler(showSearch) {
+        if (searchList) searchList = false
+        else {
+            showSearch = false
+            query = ""
+        }
+    }
     LaunchedEffect(hits.size) {
         matchIndex = matchIndex.coerceIn(0, hits.lastIndex.coerceAtLeast(0))
     }
@@ -188,7 +206,7 @@ fun ChatRoomScreen(
     LaunchedEffect(targetMessageId) {
         if (targetMessageId != null) {
             try {
-                val history = graph.chat.history(roomId).orEmpty().filter { it.roomId == roomId }
+                val history = graph.chat.context(roomId, targetMessageId).items.orEmpty().filter { it.roomId == roomId }
                 val index = history.indexOfFirst { it.id == targetMessageId }
                 context =
                     if (index < 0) emptyList()
@@ -228,7 +246,7 @@ fun ChatRoomScreen(
         }
     }
     DisposableEffect(connection) { onDispose { connection.disconnect() } }
-    ReadReceiptsEffect(connection, myId, messages, list)
+    if (!showSearch) ReadReceiptsEffect(connection, myId, messages, list)
     var typingNow by remember { mutableStateOf(false) }
     LaunchedEffect(state.typingUntil, partnerId) {
         val until = state.typingUntil.entries.firstOrNull { it.key.equals(partnerId, ignoreCase = true) }?.value ?: 0L
@@ -260,7 +278,8 @@ fun ChatRoomScreen(
             }
         }
     LaunchedEffect(state.messages) { graph.chatPreviews.recordHistory(state.messages) }
-    LaunchedEffect(messages.lastOrNull()?.id, highlighted) {
+    LaunchedEffect(messages.lastOrNull()?.id, highlighted, searchList) {
+        if (searchList) return@LaunchedEffect
         val index = messages.indexOfFirst { it.id == highlighted }
         if (index >= 0 && (showSearch || !jumped)) {
             list.scrollToItem(index)
@@ -273,47 +292,77 @@ fun ChatRoomScreen(
         }
     }
     Column(Modifier.fillMaxSize().imePadding()) {
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            IconButton(onClick = back) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Назад") }
-            key(roomId, profileRevision) {
-                ChatPartnerAvatar(
-                    graph,
-                    partner,
-                    partnerState?.photoId,
-                    Modifier.clickable(enabled = partnerProfile != null) { showPartner = true },
-                    size = 40.dp,
-                )
-            }
-            Column(
-                Modifier.weight(1f)
-                    .clickable(enabled = partnerProfile != null) { showPartner = true }
-                    .padding(start = 12.dp)
-            ) {
-                Text(partner, style = MaterialTheme.typography.titleMedium, maxLines = 1)
-                Text(
-                    if (state.connected && typingNow) "Печатает…"
-                    else if (state.connected)
-                        partnerProfile?.let { chatActivityLabel(it, state.onlineUsers[it.id]) } ?: "Чат"
-                    else if (state.connecting) "Подключаемся…" else "Нет соединения",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            IconButton(
-                onClick = {
-                    showSearch = !showSearch
-                    query = ""
+        if (showSearch) {
+            Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(
+                    onClick = {
+                        if (searchList) searchList = false
+                        else {
+                            showSearch = false
+                            query = ""
+                        }
+                    }
+                ) {
+                    Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Назад")
                 }
-            ) {
-                Icon(
-                    if (showSearch) Icons.Outlined.Close else Icons.Outlined.Search,
-                    "Поиск в чате",
+                OutlinedTextField(
+                    query,
+                    { query = it.take(200) },
+                    Modifier.weight(1f).focusRequester(searchFocus),
+                    placeholder = { Text("Поиск в переписке") },
+                    singleLine = true,
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp),
+                    trailingIcon = {
+                        IconButton(onClick = { query = "" }) { Icon(Icons.Outlined.Close, "Очистить поиск") }
+                    },
                 )
             }
-        }
+        } else
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(onClick = back) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Назад") }
+                key(roomId, profileRevision) {
+                    ChatPartnerAvatar(
+                        graph,
+                        partner,
+                        partnerState?.photoId,
+                        Modifier.clickable(enabled = partnerProfile != null) { showPartner = true },
+                        size = 40.dp,
+                    )
+                }
+                Column(
+                    Modifier.weight(1f)
+                        .clickable(enabled = partnerProfile != null) { showPartner = true }
+                        .padding(start = 12.dp)
+                ) {
+                    Text(partner, style = MaterialTheme.typography.titleMedium, maxLines = 1)
+                    Text(
+                        if (state.connected && typingNow) "Печатает…"
+                        else if (state.connected)
+                            partnerProfile?.let { chatActivityLabel(it, state.onlineUsers[it.id]) } ?: "Чат"
+                        else if (state.connecting) "Подключаемся…" else "Нет соединения",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                IconButton(
+                    onClick = {
+                        showSearch = true
+                        searchList = false
+                        focused = false
+                        selectedIds = emptySet()
+                        editingId = null
+                        query = ""
+                    }
+                ) {
+                    Icon(
+                        if (showSearch) Icons.Outlined.Close else Icons.Outlined.Search,
+                        "Поиск в чате",
+                    )
+                }
+            }
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         if (selectedIds.isNotEmpty()) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -380,28 +429,6 @@ fun ChatRoomScreen(
                 Text("Повторить загрузку истории")
             }
         }
-        if (showSearch) {
-            OutlinedTextField(
-                query,
-                { query = it.take(200) },
-                Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-                placeholder = { Text("В загруженных сообщениях") },
-                singleLine = true,
-            )
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    if (hits.isEmpty()) "Нет совпадений" else "${matchIndex + 1} из ${hits.size}",
-                    Modifier.weight(1f).padding(start = 16.dp),
-                    style = MaterialTheme.typography.labelMedium,
-                )
-                IconButton(onClick = { matchIndex-- }, enabled = matchIndex > 0) {
-                    Icon(Icons.Outlined.KeyboardArrowUp, "Предыдущее совпадение")
-                }
-                IconButton(onClick = { matchIndex++ }, enabled = matchIndex < hits.lastIndex) {
-                    Icon(Icons.Outlined.KeyboardArrowDown, "Следующее совпадение")
-                }
-            }
-        }
         if (state.error != null) {
             ErrorMessage(state.error)
             TextButton(
@@ -438,7 +465,32 @@ fun ChatRoomScreen(
                 .fillMaxWidth()
                 .bloomSwipeBack(enabled = selectedIds.isEmpty() && editingId == null && !showSearch, back = back)
         ) {
-            if (messages.isEmpty() && !loadingHistory && historyError == null)
+            if (showSearch && searchList) {
+                LazyColumn(Modifier.fillMaxSize(), flingBehavior = rememberBloomFling()) {
+                    itemsIndexed(hits, key = { _, id -> id }) { index, id ->
+                        val message = messagesById.getValue(id)
+                        ConversationRow(
+                            ChatRowItem(
+                                roomId,
+                                if (message.senderId == myId) "Вы" else partner,
+                                message.content,
+                                message.createdAt,
+                            ),
+                            avatar = { PersonAvatar(it.name, size = 40.dp) },
+                        ) {
+                            matchIndex = index
+                            searchList = false
+                        }
+                    }
+                    if (hits.isEmpty() && !loadingHistory)
+                        item {
+                            Text(
+                                if (query.isBlank()) "Введите текст для поиска" else "Ничего не найдено",
+                                Modifier.padding(24.dp),
+                            )
+                        }
+                }
+            } else if (messages.isEmpty() && !loadingHistory && historyError == null)
                 EmptyBloom(
                     "Начните с простого «привет»",
                     "Можно написать сообщение или выбрать фото.",
@@ -451,7 +503,7 @@ fun ChatRoomScreen(
                     state = list,
                     flingBehavior = rememberBloomFling(),
                     contentPadding = PaddingValues(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(3.dp),
                 ) {
                     itemsIndexed(messages, key = { _, message -> message.id }) { index, message ->
                         if (index == 0 || message.createdAt.take(10) != messages[index - 1].createdAt.take(10))
@@ -485,6 +537,39 @@ fun ChatRoomScreen(
                         )
                     }
                 }
+            if (showSearch && !searchList) {
+                Column(
+                    Modifier.align(Alignment.BottomEnd).padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    FilledIconButton(
+                        onClick = { matchIndex++ },
+                        enabled = matchIndex < hits.lastIndex,
+                        modifier = Modifier.size(44.dp),
+                        shape = androidx.compose.foundation.shape.CircleShape,
+                        colors =
+                            IconButtonDefaults.filledIconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                contentColor = MaterialTheme.colorScheme.onSurface,
+                            ),
+                    ) {
+                        Icon(Icons.Outlined.KeyboardArrowUp, "Предыдущее сообщение")
+                    }
+                    FilledIconButton(
+                        onClick = { matchIndex-- },
+                        enabled = matchIndex > 0,
+                        modifier = Modifier.size(44.dp),
+                        shape = androidx.compose.foundation.shape.CircleShape,
+                        colors =
+                            IconButtonDefaults.filledIconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                contentColor = MaterialTheme.colorScheme.onSurface,
+                            ),
+                    ) {
+                        Icon(Icons.Outlined.KeyboardArrowDown, "Следующее сообщение")
+                    }
+                }
+            }
             if (list.canScrollForward && !showSearch)
                 SmallFloatingActionButton(
                     onClick = {
@@ -498,14 +583,44 @@ fun ChatRoomScreen(
                     Icon(Icons.Outlined.KeyboardArrowDown, "Последние сообщения")
                 }
         }
-        ChatComposer(
-            graph,
-            roomId,
-            myId,
-            connection,
-            state,
-            messages.find { it.id == editingId && it.deletedAt == null },
-            { editingId = null },
-        )
+        if (showSearch) {
+            Surface(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                tonalElevation = 2.dp,
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(start = 16.dp, end = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        Icons.Outlined.Search,
+                        null,
+                        Modifier.size(22.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        if (loadingHistory) "Загрузка истории…"
+                        else if (hits.isEmpty()) "Нет совпадений" else "${matchIndex + 1} из ${hits.size}",
+                        Modifier.weight(1f),
+                        style = MaterialTheme.typography.labelLarge,
+                    )
+                    TextButton(onClick = { searchList = !searchList }) { Text(if (searchList) "В чате" else "Списком") }
+                }
+            }
+        } else
+            composerState.SaveableStateProvider(roomId) {
+                ChatComposer(
+                    graph,
+                    roomId,
+                    myId,
+                    connection,
+                    state,
+                    messages.find { it.id == editingId && it.deletedAt == null },
+                    { editingId = null },
+                )
+            }
     }
 }

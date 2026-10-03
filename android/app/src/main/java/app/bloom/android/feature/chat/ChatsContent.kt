@@ -151,7 +151,7 @@ fun ChatsContent(
 }
 
 @Composable
-private fun ConversationRow(chat: ChatRowItem, avatar: @Composable (ChatRowItem) -> Unit, open: () -> Unit) {
+internal fun ConversationRow(chat: ChatRowItem, avatar: @Composable (ChatRowItem) -> Unit, open: () -> Unit) {
     Column {
         Row(
             Modifier.fillMaxWidth().clickable(onClick = open).padding(horizontal = 22.dp, vertical = 15.dp),

@@ -17,6 +17,13 @@ interface ChatApi {
 
     @GET("conversations/{id}/messages") suspend fun history(@Path("id") roomId: Long): List<ChatMessage>?
 
+    @GET("conversations/{id}/messages")
+    suspend fun context(
+        @Path("id") roomId: Long,
+        @Query("around") messageId: Long,
+        @Query("limit") limit: Int = 50,
+    ): MessagePage
+
     @GET("conversations/capabilities") suspend fun capabilities(): ChatCapabilities
 
     @POST("conversations/{id}/read") suspend fun markRead(@Path("id") roomId: Long, @Body body: Map<String, Long>)

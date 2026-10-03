@@ -40,6 +40,7 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended:1.7.8")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.emoji2:emoji2-emojipicker:1.6.0")
+    implementation("androidx.recyclerview:recyclerview:1.2.1") // Same version used by Emoji Picker; configure its cache.
     debugImplementation("androidx.compose.ui:ui-tooling")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.9.2")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.9.2")

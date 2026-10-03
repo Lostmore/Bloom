@@ -113,6 +113,36 @@ fun MessageBubble(
             },
         )
 
+    val compactText =
+        message.deletedAt == null &&
+            message.attachments.isNullOrEmpty() &&
+            !message.content.isNullOrBlank() &&
+            bloomSticker(message.content) == null
+    val footer: @Composable () -> Unit = {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (message.editedAt != null && message.deletedAt == null)
+                Text("изменено", style = MaterialTheme.typography.labelSmall)
+            Text(
+                messageTime(message.createdAt),
+                Modifier.padding(horizontal = 5.dp),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (own)
+                Icon(
+                    if (readTime != null) Icons.Outlined.DoneAll else Icons.Outlined.Done,
+                    if (readTime != null) "Прочитано" else "Отправлено",
+                    Modifier.size(18.dp)
+                        .clickable(enabled = readTime != null && !selectionActive) {
+                            menu = true
+                        }
+                        .padding(1.dp),
+                    tint =
+                        if (readTime != null) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+        }
+    }
     Row(
         Modifier.fillMaxWidth(),
         horizontalArrangement = if (own) Arrangement.End else Arrangement.Start,
@@ -154,7 +184,10 @@ fun MessageBubble(
                     BorderStroke(if (selected) 3.dp else 1.dp, MaterialTheme.colorScheme.primary)
                 else null,
         ) {
-            Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Column(
+                Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(1.dp),
+            ) {
                 Box {
                     DropdownMenu(menu, onDismissRequest = { menu = false }) {
                         if (!message.content.isNullOrBlank())
@@ -220,7 +253,9 @@ fun MessageBubble(
                     }
                 }
                 if (selected) Text("✓ Выбрано", style = MaterialTheme.typography.labelSmall)
-                if (message.deletedAt != null) {
+                if (compactText) {
+                    CompactMessageText(message.content.orEmpty(), footer)
+                } else if (message.deletedAt != null) {
                     Text("Сообщение удалено", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } else {
                     val photos =
@@ -235,36 +270,14 @@ fun MessageBubble(
                     val sticker = bloomSticker(message.content)
                     if (sticker != null) BloomStickerArt(sticker)
                     else if (!message.content.isNullOrBlank())
-                        Text(message.content, Modifier.padding(horizontal = 5.dp, vertical = 3.dp))
+                        Text(message.content, Modifier.padding(horizontal = 2.dp))
                     if (message.attachments.orEmpty().size > photos.size)
                         Text(
                             "Вложение не поддерживается",
                             style = MaterialTheme.typography.bodySmall,
                         )
                 }
-                Row(Modifier.align(Alignment.End), verticalAlignment = Alignment.CenterVertically) {
-                    if (message.editedAt != null && message.deletedAt == null)
-                        Text("изменено", style = MaterialTheme.typography.labelSmall)
-                    Text(
-                        messageTime(message.createdAt),
-                        Modifier.padding(horizontal = 5.dp),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    if (own)
-                        Icon(
-                            if (readTime != null) Icons.Outlined.DoneAll else Icons.Outlined.Done,
-                            if (readTime != null) "Прочитано" else "Отправлено",
-                            Modifier.size(24.dp)
-                                .clickable(enabled = readTime != null && !selectionActive) {
-                                    menu = true
-                                }
-                                .padding(4.dp),
-                            tint =
-                                if (readTime != null) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                }
+                if (!compactText) Box(Modifier.align(Alignment.End)) { footer() }
             }
         }
     }
