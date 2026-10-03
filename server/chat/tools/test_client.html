@@ -187,7 +187,7 @@
                 const res = await fetch(`${authApiUrl}/register`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ phone, password })
+                    body: JSON.stringify({ phoneNumber: phone, password })
                 });
                 if (res.ok) {
                     document.getElementById("authStatus").innerText = "Регистрация успешна! Теперь войдите.";
@@ -207,12 +207,12 @@
                 const res = await fetch(`${authApiUrl}/login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ phone, password })
+                    body: JSON.stringify({ phoneNumber: phone, password })
                 });
 
                 if (res.ok) {
                     const data = await res.json();
-                    accessToken = data.access_token || data.token;
+                    accessToken = data.accessToken || data.access_token || data.token;
                     if (!accessToken) {
                         document.getElementById("authStatus").innerText = "Токен не получен";
                         return;
@@ -277,14 +277,6 @@
 
                 if (wsMsg.type === "new_message") {
                     const data = wsMsg.payload;
-
-                    if (wsMsg.type === "error") {
-                        alert("Ошибка сервера: " + wsMsg.error);
-                        return;
-                    }
-
-                    if (wsMsg.type === "new_message") {
-                        const data = wsMsg.payload;
 
                     // Рисуем сообщение только если мы сейчас сидим в этой комнате
                     if (data.room_id === currentRoomId) {
@@ -728,18 +720,25 @@
                 const list = document.createElement("ul");
                 data.attachments.forEach(att => {
                     const item = document.createElement("li");
+                    let urlStr = null;
                     if (att.media_id) {
-                        item.textContent = `Медиа файл: ${att.media_id}`;
-                    } else {
-                        const url = safeMediaUrl(att.url);
-                        if (url) {
+                        urlStr = `/api/v1/media/${att.media_id}`;
+                    } else if (att.url) {
+                        urlStr = att.url;
+                    }
+
+                    if (urlStr) {
+                        const safeUrl = safeMediaUrl(urlStr);
+                        if (safeUrl) {
                             const button = document.createElement("button");
                             button.textContent = "Скачать файл (без предпросмотра)";
-                            button.onclick = () => downloadMedia(url, button);
+                            button.onclick = () => downloadMedia(safeUrl, button);
                             item.appendChild(button);
                         } else {
                             item.textContent = "Недопустимая ссылка на вложение";
                         }
+                    } else {
+                        item.textContent = "Нет ссылки или media_id";
                     }
                     list.appendChild(item);
                 });
