@@ -94,6 +94,7 @@ fun ChatsContent(
         ) {
             LazyColumn(
                 Modifier.fillMaxSize().testTag("chat-list"),
+                flingBehavior = rememberBloomFling(),
                 contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp),
             ) {
                 if (error != null) item { Box(Modifier.padding(20.dp)) { ErrorMessage(error) } }

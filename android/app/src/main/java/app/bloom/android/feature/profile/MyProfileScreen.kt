@@ -42,7 +42,7 @@ fun MyProfileScreen(
     var interestNames by remember(me.interests) { mutableStateOf<List<String>>(emptyList()) }
     LaunchedEffect(me.interests) {
         try {
-            interestNames = graph.users.interests().filter { it.id in me.interests.orEmpty() }.map { it.name }
+            interestNames = graph.users.interests().filter { it.id in me.interests.orEmpty() }.map { it.displayName }
         } catch (exception: CancellationException) {
             throw exception
         } catch (_: Exception) {}

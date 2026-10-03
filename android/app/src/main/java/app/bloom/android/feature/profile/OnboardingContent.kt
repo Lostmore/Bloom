@@ -111,7 +111,7 @@ fun OnboardingContent(
                             verticalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
                             catalog.forEach { interest ->
-                                FilterChip(
+                                InterestChip(
                                     interest.id in draft.interests,
                                     {
                                         change(
@@ -123,7 +123,8 @@ fun OnboardingContent(
                                             )
                                         )
                                     },
-                                    label = { Text(interest.name) },
+                                    label = { Text(interest.displayName) },
+                                    enabled = !busy && (interest.id in draft.interests || draft.interests.size < 10),
                                 )
                             }
                         }

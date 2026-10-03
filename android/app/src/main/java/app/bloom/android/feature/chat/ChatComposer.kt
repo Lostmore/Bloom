@@ -53,6 +53,8 @@ fun ChatComposer(
     myId: String,
     connection: ChatConnection,
     state: ChatState,
+    editingMessage: ChatMessage? = null,
+    cancelEditing: () -> Unit = {},
 ) {
     var draft by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue()) }
     var photos by rememberSaveable { mutableStateOf(listOf<String>()) }
@@ -160,6 +162,10 @@ fun ChatComposer(
             busy = false
             error = "Подтверждение не пришло. Черновик сохранён — проверь историю перед повтором."
         }
+    }
+    if (editingMessage != null) {
+        EditMessageComposer(editingMessage, connection, state, cancelEditing)
+        return
     }
     Column {
         if (photos.isNotEmpty()) {

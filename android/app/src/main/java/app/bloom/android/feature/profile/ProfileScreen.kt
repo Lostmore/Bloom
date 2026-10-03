@@ -84,7 +84,11 @@ fun ProfileScreen(
     }
     ProfileCoverHost(profile) { coverModifier, openCover ->
         Column(
-            coverModifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
+            coverModifier
+                .fillMaxSize()
+                .bloomSwipeBack(enabled = !busy, back = back)
+                .verticalScroll(rememberScrollState(), flingBehavior = rememberBloomFling())
+                .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {

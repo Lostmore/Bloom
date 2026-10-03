@@ -50,17 +50,18 @@ fun InterestsDialog(
                 Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Text("Выбери до 10 интересов — так проще найти общее.")
+                Text("Выбрано ${selected.size} из 10. Можно выбрать несколько.")
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     catalog.forEach { interest ->
-                        FilterChip(
+                        InterestChip(
                             interest.id in selected,
                             {
                                 selected =
                                     if (interest.id in selected) selected - interest.id
                                     else if (selected.size < 10) selected + interest.id else selected
                             },
-                            label = { Text(interest.name) },
+                            label = { Text(interest.displayName) },
+                            enabled = !busy && (interest.id in selected || selected.size < 10),
                         )
                     }
                 }

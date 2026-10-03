@@ -36,10 +36,17 @@ fun MessageComposer(
     canSend: Boolean,
     send: () -> Unit,
     attach: () -> Unit,
+    editing: Boolean = false,
 ) {
     var emojiPanel by rememberSaveable { mutableStateOf(false) }
     val keyboard = LocalSoftwareKeyboardController.current
     val focus = remember { FocusRequester() }
+    LaunchedEffect(editing) {
+        if (editing) {
+            focus.requestFocus()
+            keyboard?.show()
+        }
+    }
     var inputFocused by remember { mutableStateOf(false) }
     BackHandler(enabled = emojiPanel) { emojiPanel = false }
     Column {
@@ -86,9 +93,10 @@ fun MessageComposer(
                     }
                 },
                 trailingIcon = {
-                    IconButton(onClick = attach, enabled = enabled) {
-                        Icon(Icons.Outlined.AttachFile, "Прикрепить фото")
-                    }
+                    if (!editing)
+                        IconButton(onClick = attach, enabled = enabled) {
+                            Icon(Icons.Outlined.AttachFile, "Прикрепить фото")
+                        }
                 },
                 colors =
                     OutlinedTextFieldDefaults.colors(
@@ -101,14 +109,17 @@ fun MessageComposer(
                 enabled = enabled && canSend,
                 modifier = Modifier.padding(bottom = 4.dp).size(48.dp),
             ) {
-                Icon(Icons.AutoMirrored.Outlined.Send, "Отправить сообщение")
+                Icon(
+                    if (editing) Icons.Outlined.Check else Icons.AutoMirrored.Outlined.Send,
+                    if (editing) "Сохранить изменения" else "Отправить сообщение",
+                )
             }
         }
         if (emojiPanel) {
             Surface(color = MaterialTheme.colorScheme.surface) {
                 ExpressionPicker(
                     enabled,
-                    value.text.isBlank() || selectedSticker != null,
+                    !editing && (value.text.isBlank() || selectedSticker != null),
                     emoji = { change(insertEmoji(if (selectedSticker == null) value else TextFieldValue(), it)) },
                     sticker = {
                         change(TextFieldValue(it.wire, TextRange(it.wire.length)))

@@ -36,8 +36,7 @@ fun MessageBubble(
     selected: Boolean = false,
     selectionActive: Boolean = false,
     select: (() -> Unit)? = null,
-    editRequest: Int = 0,
-    editStarted: () -> Unit = {},
+    startEditing: () -> Unit = {},
 ) {
     var details by remember(message.id) { mutableStateOf(false) }
     var menu by remember(message.id) { mutableStateOf(false) }
@@ -47,14 +46,6 @@ fun MessageBubble(
     var actionError by remember(message.id) { mutableStateOf<String?>(null) }
     val clipboard = LocalClipboardManager.current
     val readTime = message.readAt?.let { runCatching { OffsetDateTime.parse(it) }.getOrNull() }
-    var showReadTime by remember(message.id) { mutableStateOf(false) }
-    LaunchedEffect(editRequest) {
-        if (editRequest > 0 && own && edit != null && message.deletedAt == null) {
-            replacement = message.content.orEmpty()
-            editing = true
-            editStarted()
-        }
-    }
     fun closeDialog() {
         details = false
         menu = false
@@ -87,7 +78,7 @@ fun MessageBubble(
                                     onClick = {
                                         replacement = message.content.orEmpty()
                                         details = false
-                                        editing = true
+                                        startEditing()
                                     }
                                 ) {
                                     Text("Редактировать")
@@ -185,7 +176,7 @@ fun MessageBubble(
                                 onClick = {
                                     replacement = message.content.orEmpty()
                                     menu = false
-                                    editing = true
+                                    startEditing()
                                 },
                             )
                         if (own && delete != null)
@@ -204,48 +195,32 @@ fun MessageBubble(
                                     select()
                                 },
                             )
+                        if (own && readTime != null) {
+                            val local = readTime.atZoneSameInstant(ZoneId.systemDefault())
+                            val day = local.toLocalDate()
+                            val today = java.time.LocalDate.now()
+                            val date =
+                                when (day) {
+                                    today -> "сегодня"
+                                    today.minusDays(1) -> "вчера"
+                                    else ->
+                                        local.format(
+                                            DateTimeFormatter.ofPattern(
+                                                "d MMMM yyyy",
+                                                java.util.Locale.forLanguageTag("ru"),
+                                            )
+                                        )
+                                }
+                            Text(
+                                "Прочитано $date в ${local.format(DateTimeFormatter.ofPattern("HH:mm"))}",
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                                style = MaterialTheme.typography.labelSmall,
+                            )
+                        }
                     }
                 }
                 if (selected) Text("✓ Выбрано", style = MaterialTheme.typography.labelSmall)
-                if (showReadTime && !selectionActive && own && readTime != null) {
-                    val local = readTime.atZoneSameInstant(ZoneId.systemDefault())
-                    val day = local.toLocalDate()
-                    val today = java.time.LocalDate.now()
-                    val date =
-                        when (day) {
-                            today -> "сегодня"
-                            today.minusDays(1) -> "вчера"
-                            else ->
-                                local.format(
-                                    DateTimeFormatter.ofPattern("d MMMM yyyy", java.util.Locale.forLanguageTag("ru"))
-                                )
-                        }
-                    Text(
-                        "Прочитано $date в ${local.format(DateTimeFormatter.ofPattern("HH:mm"))}",
-                        style = MaterialTheme.typography.labelSmall,
-                    )
-                }
-                if (editing && own && message.deletedAt == null) {
-                    OutlinedTextField(
-                        replacement,
-                        { replacement = it },
-                        modifier = Modifier.fillMaxWidth().heightIn(max = 200.dp),
-                        label = { Text("Редактирование") },
-                    )
-                    actionError?.let { Text(it) }
-                    Row(Modifier.align(Alignment.End)) {
-                        TextButton(onClick = { closeDialog() }) { Text("Отмена") }
-                        TextButton(
-                            enabled = replacement.isNotBlank() && edit != null,
-                            onClick = {
-                                if (edit?.invoke(replacement) == true) closeDialog()
-                                else actionError = "Нет соединения. Текст сохранён здесь."
-                            },
-                        ) {
-                            Text("Сохранить")
-                        }
-                    }
-                } else if (message.deletedAt != null) {
+                if (message.deletedAt != null) {
                     Text("Сообщение удалено", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } else {
                     val photos =
@@ -282,7 +257,7 @@ fun MessageBubble(
                             if (readTime != null) "Прочитано" else "Отправлено",
                             Modifier.size(24.dp)
                                 .clickable(enabled = readTime != null && !selectionActive) {
-                                    showReadTime = !showReadTime
+                                    menu = true
                                 }
                                 .padding(4.dp),
                             tint =

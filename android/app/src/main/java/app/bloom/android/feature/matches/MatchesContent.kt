@@ -50,6 +50,7 @@ fun MatchesContent(
             LazyVerticalGrid(
                 GridCells.Fixed(2),
                 Modifier.fillMaxSize(),
+                flingBehavior = app.bloom.android.core.ui.rememberBloomFling(),
                 contentPadding = PaddingValues(18.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp),

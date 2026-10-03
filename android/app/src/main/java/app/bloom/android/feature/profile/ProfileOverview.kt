@@ -42,7 +42,10 @@ fun ProfileOverview(
             .count { it }
     ProfileCoverHost(me) { coverModifier, openCover ->
         Column(
-            coverModifier.fillMaxSize().testTag("profile-scroll").verticalScroll(rememberScrollState()),
+            coverModifier
+                .fillMaxSize()
+                .testTag("profile-scroll")
+                .verticalScroll(rememberScrollState(), flingBehavior = app.bloom.android.core.ui.rememberBloomFling()),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Row(

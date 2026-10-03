@@ -80,7 +80,6 @@ fun ChatRoomScreen(
     var selectionMenu by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     var editingId by remember { mutableStateOf<Long?>(null) }
-    var editRequest by remember { mutableIntStateOf(0) }
     var pendingDeletes by remember { mutableStateOf(setOf<Long>()) }
     val clipboard = LocalClipboardManager.current
     val selectedMessages = messages.filter { it.id in selectedIds && it.deletedAt == null }
@@ -158,7 +157,7 @@ fun ChatRoomScreen(
                                 graph.users
                                     .interests()
                                     .filter { it.id in loaded.profile.interests.orEmpty() }
-                                    .map { it.name }
+                                    .map { it.displayName }
                         } catch (exception: CancellationException) {
                             throw exception
                         } catch (_: Exception) {}
@@ -269,7 +268,8 @@ fun ChatRoomScreen(
         } else if (!focused && !showSearch && messages.isNotEmpty()) {
             val nearBottom =
                 (list.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: messages.lastIndex) >= messages.lastIndex - 3
-            if (nearBottom || messages.last().senderId == myId) list.animateScrollToItem(messages.lastIndex)
+            if (!list.isScrollInProgress && (nearBottom || messages.last().senderId == myId))
+                list.scrollToItem(messages.lastIndex)
         }
     }
     Column(Modifier.fillMaxSize().imePadding()) {
@@ -354,7 +354,6 @@ fun ChatRoomScreen(
                                 enabled = state.connected && pendingDeletes.isEmpty(),
                                 onClick = {
                                     editingId = single.id
-                                    editRequest++
                                     selectedIds = emptySet()
                                     selectionMenu = false
                                 },
@@ -434,7 +433,11 @@ fun ChatRoomScreen(
                 Text("К новым сообщениям")
             }
         }
-        Box(Modifier.weight(1f).fillMaxWidth()) {
+        Box(
+            Modifier.weight(1f)
+                .fillMaxWidth()
+                .bloomSwipeBack(enabled = selectedIds.isEmpty() && editingId == null && !showSearch, back = back)
+        ) {
             if (messages.isEmpty() && !loadingHistory && historyError == null)
                 EmptyBloom(
                     "Начните с простого «привет»",
@@ -446,6 +449,7 @@ fun ChatRoomScreen(
                 LazyColumn(
                     Modifier.fillMaxSize(),
                     state = list,
+                    flingBehavior = rememberBloomFling(),
                     contentPadding = PaddingValues(12.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
@@ -472,8 +476,7 @@ fun ChatRoomScreen(
                                 if (message.id in selectedIds) selectedIds = selectedIds - message.id
                                 else selectedIds = selectedIds + message.id
                             },
-                            editRequest = if (editingId == message.id) editRequest else 0,
-                            editStarted = { editingId = null },
+                            startEditing = { editingId = message.id },
                             edit = if (state.connected) { text -> connection.edit(message.id, text) } else null,
                             delete =
                                 if (state.connected) {
@@ -486,7 +489,7 @@ fun ChatRoomScreen(
                 SmallFloatingActionButton(
                     onClick = {
                         scope.launch {
-                            list.animateScrollToItem(messages.lastIndex.coerceAtLeast(0))
+                            list.scrollToItem(messages.lastIndex.coerceAtLeast(0))
                         }
                     },
                     modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp),
@@ -495,6 +498,14 @@ fun ChatRoomScreen(
                     Icon(Icons.Outlined.KeyboardArrowDown, "Последние сообщения")
                 }
         }
-        ChatComposer(graph, roomId, myId, connection, state)
+        ChatComposer(
+            graph,
+            roomId,
+            myId,
+            connection,
+            state,
+            messages.find { it.id == editingId && it.deletedAt == null },
+            { editingId = null },
+        )
     }
 }
