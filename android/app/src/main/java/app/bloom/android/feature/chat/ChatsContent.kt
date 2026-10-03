@@ -65,7 +65,7 @@ fun ChatsContent(
             Modifier.fillMaxWidth().padding(start = 24.dp, end = 12.dp, top = 12.dp, bottom = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("Чаты", Modifier.weight(1f), style = MaterialTheme.typography.headlineLarge)
+            Text("Bloom", Modifier.weight(1f), style = MaterialTheme.typography.headlineLarge)
         }
         OutlinedTextField(
             query,
@@ -94,21 +94,8 @@ fun ChatsContent(
         ) {
             LazyColumn(
                 Modifier.fillMaxSize().testTag("chat-list"),
-                contentPadding = PaddingValues(top = 22.dp, bottom = 24.dp),
+                contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp),
             ) {
-                item {
-                    Row(
-                        Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text("Чаты", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
-                        Text(
-                            if (query.isEmpty()) "${items.size}" else "${filtered.size}",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            style = MaterialTheme.typography.labelMedium,
-                        )
-                    }
-                }
                 if (error != null) item { Box(Modifier.padding(20.dp)) { ErrorMessage(error) } }
                 items(filtered, key = { "room-${it.id}" }) { chat ->
                     ConversationRow(chat, avatar) { openChat(chat.id) }
