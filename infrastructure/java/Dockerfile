@@ -17,11 +17,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl \
     && useradd --uid 10001 --gid bloom --no-create-home bloom
 COPY --from=build --chown=bloom:bloom /tmp/application.jar /app/application.jar
 USER bloom
+ENV MALLOC_ARENA_MAX=2 \
+    MALLOC_TRIM_THRESHOLD_=65536
 ENTRYPOINT ["java", \
-    "-XX:MaxRAMPercentage=75", \
-    "-XX:+UseZGC", \
-    "-XX:+ZGenerational", \
-    "-XX:+UseStringDeduplication", \
+    "-XX:+UseSerialGC", \
+    "-XX:MaxRAMPercentage=45.0", \
+    "-XX:InitialRAMPercentage=10.0", \
+    "-XX:MinHeapFreeRatio=20", \
+    "-XX:MaxHeapFreeRatio=40", \
+    "-XX:-ShrinkHeapInSteps", \
     "-XX:MaxMetaspaceSize=128m", \
+    "-XX:ReservedCodeCacheSize=48m", \
+    "-Xss512k", \
+    "-XX:+UseStringDeduplication", \
     "-XX:+ExitOnOutOfMemoryError", \
     "-jar", "/app/application.jar"]

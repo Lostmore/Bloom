@@ -9,7 +9,8 @@ x-java: &java
     - no-new-privileges:true
   cap_drop:
     - ALL
-  mem_limit: 768m
+  mem_reservation: 200m
+  mem_limit: 384m
   networks:
     - backend
 
@@ -51,6 +52,8 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_LOG_DIRS: /var/lib/kafka/data
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+      KAFKA_HEAP_OPTS: "-Xmx256m -Xms128m"
+    mem_limit: 384m
     volumes:
       - kafka-data:/var/lib/kafka/data
     healthcheck:
@@ -189,6 +192,10 @@ services:
       dockerfile: infrastructure/java/Dockerfile
       args:
         SERVICE: api-gateway
+    environment:
+      JAVA_TOOL_OPTIONS: "-Dio.netty.allocator.maxOrder=3 -Dio.netty.allocator.numHeapArenas=1 -Dio.netty.allocator.numDirectArenas=1"
+    mem_reservation: 160m
+    mem_limit: 256m
     volumes:
       - ./server/api-gateway/src/main/resources/application.yml:/app/config/application.yml:ro
     command:
