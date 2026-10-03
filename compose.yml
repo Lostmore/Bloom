@@ -235,6 +235,8 @@ services:
       dockerfile: infrastructure/java/Dockerfile
       args:
         SERVICE: interactions
+    mem_reservation: 160m
+    mem_limit: 256m
     volumes:
       - ./server/interactions/src/main/resources/application.yml:/app/config/application.yml:ro
     command:
