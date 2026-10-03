@@ -105,8 +105,8 @@ func TestMessageRepo_SaveWithAttachments(t *testing.T) {
 		SenderID: uuid.MustParse("00000000-0000-0000-0000-000000000010"),
 		Content:  "Look at these files!",
 		Attachments: []domain.Attachment{
-			{URL: "http://example.com/1.jpg", MediaType: "image/jpeg"},
-			{URL: "http://example.com/2.mp4", MediaType: "video/mp4"},
+			{MediaID: uuid.MustParse("00000000-0000-0000-0000-000000000001")},
+			{MediaID: uuid.MustParse("00000000-0000-0000-0000-000000000002")},
 		},
 	}
 	err = repo.Save(ctx, msg)
@@ -117,8 +117,8 @@ func TestMessageRepo_SaveWithAttachments(t *testing.T) {
 	require.Len(t, testMsg, 1)
 	require.Equal(t, msg.Content, testMsg[0].Content)
 	require.NoError(t, err)
-	require.Equal(t, "http://example.com/1.jpg", testMsg[0].Attachments[0].URL)
-	require.Equal(t, "video/mp4", testMsg[0].Attachments[1].MediaType)
+	require.Equal(t, "/api/v1/media/00000000-0000-0000-0000-000000000001", testMsg[0].Attachments[0].URL)
+	require.Equal(t, "/api/v1/media/00000000-0000-0000-0000-000000000002", testMsg[0].Attachments[1].URL)
 	var count int
 	err = pool.QueryRow(ctx, "SELECT count(*) FROM outbox_events").Scan(&count)
 	require.NoError(t, err)

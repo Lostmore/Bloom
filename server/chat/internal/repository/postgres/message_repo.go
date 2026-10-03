@@ -35,10 +35,11 @@ func (r *MessageRepo) Save(ctx context.Context, msg *domain.Message) error {
 		return err
 	}
 	for id, attachment := range msg.Attachments {
-		err = tx.QueryRow(ctx, "INSERT INTO message_attachments (message_id,url,media_type) VALUES ($1,$2,$3) RETURNING id,created_at", msg.ID, attachment.URL, attachment.MediaType).Scan(&msg.Attachments[id].ID, &msg.Attachments[id].CreatedAt)
+		err = tx.QueryRow(ctx, "INSERT INTO message_attachments (message_id,media_id) VALUES ($1,$2) RETURNING id,created_at", msg.ID, attachment.MediaID).Scan(&msg.Attachments[id].ID, &msg.Attachments[id].CreatedAt)
 		if err != nil {
 			return err
 		}
+		msg.Attachments[id].URL = "/api/v1/media/" + attachment.MediaID.String()
 	}
 	if len(msg.Attachments) > 0 {
 		var attachment []string
@@ -76,8 +77,7 @@ func (r *MessageRepo) GetByRoomID(ctx context.Context, roomID int64) ([]*domain.
                     'id', ma.id,
                     'message_id', ma.message_id,
                     'media_id', ma.media_id,
-                	'url', ma.url, 
-                	'media_type', ma.media_type,
+                	'url', '/api/v1/media/' || ma.media_id::text, 
                 	'created_at', ma.created_at
             ) ORDER BY ma.id ASC
         ) FILTER (WHERE ma.id IS NOT NULL), 
@@ -156,8 +156,8 @@ func (r *MessageRepo) SoftDelete(ctx context.Context, messageID int64, deletedAt
                 json_build_object(
                     'id', ma.id,
                     'message_id', ma.message_id,
-                	'url', ma.url, 
-                	'media_type', ma.media_type,
+                    'media_id', ma.media_id,
+                	'url', '/api/v1/media/' || ma.media_id::text, 
                 	'created_at', ma.created_at
             )
         ) FILTER (WHERE ma.id IS NOT NULL), 
@@ -194,8 +194,7 @@ func (r *MessageRepo) SearchByUser(ctx context.Context, userID uuid.UUID, query 
                 'id', ma.id,
                 'message_id', ma.message_id,
                 'media_id', ma.media_id,
-                'url', ma.url, 
-                'media_type', ma.media_type,
+                'url', '/api/v1/media/' || ma.media_id::text, 
                 'created_at', ma.created_at
             ) ORDER BY ma.id ASC
         ), '[]')
@@ -251,8 +250,7 @@ func (r *MessageRepo) GetAround(ctx context.Context, roomID int64, aroundID int6
                 'id', ma.id,
                 'message_id', ma.message_id,
                 'media_id', ma.media_id,
-                'url', ma.url, 
-                'media_type', ma.media_type,
+                'url', '/api/v1/media/' || ma.media_id::text, 
                 'created_at', ma.created_at
             ) ORDER BY ma.id ASC
         ), '[]') FROM message_attachments ma WHERE ma.message_id = m.id) AS attachments
@@ -267,8 +265,7 @@ func (r *MessageRepo) GetAround(ctx context.Context, roomID int64, aroundID int6
                 'id', ma.id,
                 'message_id', ma.message_id,
                 'media_id', ma.media_id,
-                'url', ma.url, 
-                'media_type', ma.media_type,
+                'url', '/api/v1/media/' || ma.media_id::text, 
                 'created_at', ma.created_at
             ) ORDER BY ma.id ASC
         ), '[]') FROM message_attachments ma WHERE ma.message_id = m.id) AS attachments

@@ -570,10 +570,9 @@
 
                     if (res.ok) {
                         const data = await res.json();
-                        // Сохраняем uuid и mime-тип, как ожидает сервер в новом формате
+                        // Сохраняем uuid, как ожидает сервер в новом формате
                         uploadedFiles.push({
-                            media_id: data.mediaId,
-                            media_type: data.mimeType || files[i].type
+                            media_id: data.mediaId
                         });
                     } else {
                         alert("Ошибка загрузки файла " + files[i].name + ": " + await res.text());
@@ -730,7 +729,7 @@
                 data.attachments.forEach(att => {
                     const item = document.createElement("li");
                     if (att.media_id) {
-                        item.textContent = `Медиа файл: ${att.media_id} (${att.media_type || 'неизвестно'})`;
+                        item.textContent = `Медиа файл: ${att.media_id}`;
                     } else {
                         const url = safeMediaUrl(att.url);
                         if (url) {

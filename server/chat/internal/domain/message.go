@@ -11,8 +11,8 @@ import (
 type Attachment struct {
 	ID        int64     `json:"id"`
 	MessageID int64     `json:"message_id"`
-	URL       string    `json:"url"`
-	MediaType string    `json:"media_type"`
+	MediaID   uuid.UUID `json:"media_id"`
+	URL       string    `json:"url"` // Populated dynamically
 	CreatedAt time.Time `json:"created_at"`
 }
 
