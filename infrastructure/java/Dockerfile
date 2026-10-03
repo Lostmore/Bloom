@@ -17,4 +17,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl \
     && useradd --uid 10001 --gid bloom --no-create-home bloom
 COPY --from=build --chown=bloom:bloom /tmp/application.jar /app/application.jar
 USER bloom
-ENTRYPOINT ["java", "-XX:MaxRAMPercentage=70", "-jar", "/app/application.jar"]
+ENTRYPOINT ["java", \
+    "-XX:MaxRAMPercentage=75", \
+    "-XX:+UseZGC", \
+    "-XX:+ZGenerational", \
+    "-XX:+UseStringDeduplication", \
+    "-XX:MaxMetaspaceSize=128m", \
+    "-XX:+ExitOnOutOfMemoryError", \
+    "-jar", "/app/application.jar"]

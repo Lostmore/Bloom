@@ -18,4 +18,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl \
 COPY --from=build --chown=bloom:bloom /workspace/users/build/libs/users.jar /app/users.jar
 USER bloom
 EXPOSE 8082
-ENTRYPOINT ["java", "-XX:MaxRAMPercentage=70", "-jar", "/app/users.jar"]
+ENTRYPOINT ["java", \
+    "-XX:MaxRAMPercentage=75", \
+    "-XX:+UseZGC", \
+    "-XX:+ZGenerational", \
+    "-XX:+UseStringDeduplication", \
+    "-XX:MaxMetaspaceSize=128m", \
+    "-XX:+ExitOnOutOfMemoryError", \
+    "-jar", "/app/users.jar"]
