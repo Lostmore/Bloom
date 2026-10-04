@@ -100,6 +100,7 @@ services:
     environment:
       - SPRING_PROFILES_ACTIVE=docker
       - JWT_PUBLIC_KEY=${JWT_PUBLIC_KEY}
+      - IDENTITY_INTERNAL_TOKEN=${IDENTITY_INTERNAL_TOKEN:-}
     depends_on:
       discovery:
         condition: service_started

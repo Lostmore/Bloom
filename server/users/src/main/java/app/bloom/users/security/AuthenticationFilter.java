@@ -54,7 +54,7 @@ public class AuthenticationFilter extends OncePerRequestFilter {
                     response.sendError(401);
                     return;
                 }
-                authenticate(identity.authenticate(bearer.substring(7)), "ROLE_USER");
+                authenticate(identity.authenticate(bearer.substring(7), "POST".equals(request.getMethod()) && path.equals("/users")), "ROLE_USER");
             }
         } catch (ResponseStatusException exception) {
             response.sendError(exception.getStatusCode().value());

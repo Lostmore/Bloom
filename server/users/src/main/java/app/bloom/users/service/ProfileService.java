@@ -40,15 +40,26 @@ public class ProfileService {
 
     @Transactional
     public Profile create(UUID id, CreateProfileRequest request) {
+        return create(id, request, false);
+    }
+
+    @Transactional
+    public Profile onboard(UUID id, CreateProfileRequest request) {
+        return create(id, request, true);
+    }
+
+    private Profile create(UUID id, CreateProfileRequest request, boolean allowRetry) {
         LocalDate today = LocalDate.now(ZoneOffset.UTC);
         if (request.birthDate().isAfter(today.minusYears(18)) || request.birthDate().isBefore(today.minusYears(120))) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Age must be between 18 and 120");
         }
         boolean created = profiles.create(id, text(request.nickname()), request.birthDate(), request.gender(), request.searchModes());
         if (!created) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Profile already exists");
+            if (!allowRetry) throw new ResponseStatusException(HttpStatus.CONFLICT, "Profile already exists");
+            return me(id);
         }
         events.append(id, 0, "user.created", Map.of());
+        events.append(id, 0, "user.profile.completed", Map.of());
         safety.audit(id, "PROFILE_CREATED", id);
         return me(id);
     }

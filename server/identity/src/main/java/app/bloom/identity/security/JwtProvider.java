@@ -1,5 +1,6 @@
 package app.bloom.identity.security;
 
+import app.bloom.identity.model.AccessStatus;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
@@ -37,7 +38,7 @@ public class JwtProvider {
         this.refreshTtl = refreshTtl;
     }
 
-    public String accessToken(UUID accountId, UUID familyId, long tokenVersion) {
+    public String accessToken(UUID accountId, UUID familyId, long tokenVersion, AccessStatus status) {
         Instant now = Instant.now();
         return Jwts.builder()
                 .issuer("bloom-identity")
@@ -45,6 +46,7 @@ public class JwtProvider {
                 .subject(accountId.toString())
                 .claim("fid", familyId.toString())
                 .claim("tv", tokenVersion)
+                .claim("status", status.name())
                 .claim("type", "access")
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plus(accessTtl)))
@@ -87,6 +89,14 @@ public class JwtProvider {
 
     public UUID accountId(Claims claims) {
         return UUID.fromString(claims.getSubject());
+    }
+
+    public AccessStatus accessStatus(Claims claims) {
+        Object status = claims.get("status");
+        // Tokens issued before onboarding was introduced require refresh.
+        if (status == null) return AccessStatus.ONBOARDING;
+        if (!(status instanceof String value)) throw new IllegalArgumentException("Invalid access status");
+        return AccessStatus.valueOf(value);
     }
 
     public long tokenVersion(Claims claims) {

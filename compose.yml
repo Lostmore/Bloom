@@ -194,6 +194,7 @@ services:
         SERVICE: api-gateway
     environment:
       JAVA_TOOL_OPTIONS: "-Dio.netty.allocator.maxOrder=3 -Dio.netty.allocator.numHeapArenas=1 -Dio.netty.allocator.numDirectArenas=1"
+      IDENTITY_INTERNAL_TOKEN: ${IDENTITY_INTERNAL_TOKEN:-}
     mem_reservation: 160m
     mem_limit: 256m
     volumes:

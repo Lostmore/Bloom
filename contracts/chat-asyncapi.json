@@ -71,6 +71,7 @@
   "components": {
     "securitySchemes": {
       "accessToken": {
+        "description": "Access JWT со статусом ACTIVE. После регистрации создать анкету через POST /api/v1/users и обновить токен через /api/v1/auth/refresh. ONBOARDING получает 403 при подключении к WebSocket через Gateway.",
         "type": "httpApiKey",
         "in": "query",
         "name": "token"

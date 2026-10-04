@@ -196,7 +196,7 @@ public class AuthService {
 
     private AuthResponse response(Account account, RefreshSession session, String refresh) {
         return new AuthResponse(jwt.accessToken(account.getId(),
-            session.getFamilyId(), account.getTokenVersion()),
+            session.getFamilyId(), account.getTokenVersion(), account.getAccessStatus()),
             refresh, jwt.getAccessTtlSeconds());
     }
 }

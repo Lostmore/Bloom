@@ -1,0 +1,1 @@
+ALTER TABLE accounts ADD COLUMN profile_completed BOOLEAN NOT NULL DEFAULT FALSE;
