@@ -23,11 +23,22 @@ class UsersRoutingTest {
     private static HttpServer start() {
         try {
             HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+            server.createContext("/internal/identity/onboarding/introspect", exchange -> {
+                String token = new com.fasterxml.jackson.databind.ObjectMapper().readTree(exchange.getRequestBody()).path("token").asText();
+                String body = token.equals("bad") ? "{\"active\":false}"
+                    : "{\"active\":true,\"accountId\":\"user\",\"familyId\":\"family\",\"status\":\""
+                        + (token.equals("onboarding") ? "ONBOARDING" : "ACTIVE") + "\"}";
+                byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+                exchange.getResponseHeaders().set("Content-Type", "application/json");
+                exchange.sendResponseHeaders(200, bytes.length);
+                exchange.getResponseBody().write(bytes);
+                exchange.close();
+            });
             server.createContext("/", exchange -> {
                 String credentials = exchange.getRequestHeaders().getFirst("Authorization");
                 boolean safe = exchange.getRequestHeaders().getFirst("X-Internal-Token") == null
                         && exchange.getRequestHeaders().getFirst("X-User-ID") == null
-                        && "Bearer client-token".equals(credentials);
+                        && ("Bearer client-token".equals(credentials) || "Bearer onboarding".equals(credentials));
                 byte[] body = exchange.getRequestURI().getPath().getBytes(StandardCharsets.UTF_8);
                 exchange.sendResponseHeaders(safe ? 200 : 400, body.length);
                 exchange.getResponseBody().write(body);
@@ -42,6 +53,8 @@ class UsersRoutingTest {
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
+        registry.add("bloom.identity.token", () -> "gateway-test-token-at-least-32-characters");
+        registry.add("IDENTITY_URL", () -> "http://127.0.0.1:" + USERS.getAddress().getPort());
         registry.add("USERS_URL", () -> "http://127.0.0.1:" + USERS.getAddress().getPort());
         registry.add("INTERACTIONS_URL", () -> "http://127.0.0.1:" + USERS.getAddress().getPort());
     }
@@ -59,6 +72,22 @@ class UsersRoutingTest {
                 .header("X-Internal-Token", "untrusted-service-token")
                 .header("X-User-ID", "spoofed-user")
                 .exchange().expectStatus().isOk().expectBody(String.class).isEqualTo(path);
+    }
+
+    @Test
+    void onboardingAllowsOnlyProfileCreationIncludingWebSocketGate() {
+        http.post().uri("/api/v1/users").header("Authorization", "Bearer onboarding")
+                .exchange().expectStatus().isOk().expectBody(String.class).isEqualTo("/users");
+        for (String path : new String[]{"/users/me", "/interests", "/conversations", "/matches", "/media/upload", "/activities"}) {
+            http.get().uri("/api/v1" + path).header("Authorization", "Bearer onboarding")
+                    .exchange().expectStatus().isForbidden();
+        }
+        http.get().uri("/api/v1/ws?token=onboarding").exchange().expectStatus().isForbidden();
+        http.put().uri("/api/v1/users/me").header("Authorization", "Bearer onboarding")
+                .exchange().expectStatus().isForbidden();
+        http.get().uri("/api/v1/users/me").header("Authorization", "Bearer bad")
+                .exchange().expectStatus().isUnauthorized();
+        http.post().uri("/api/v1/users").exchange().expectStatus().isUnauthorized();
     }
 
     @Test

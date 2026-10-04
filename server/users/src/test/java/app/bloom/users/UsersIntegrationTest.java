@@ -30,6 +30,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 abstract class UsersIntegrationTest {
     static final String INTERNAL = "users-test-internal-token-32-characters-minimum";
     static final Set<UUID> ACTIVE = ConcurrentHashMap.newKeySet();
+    static final Set<UUID> ONBOARDING = ConcurrentHashMap.newKeySet();
     static final Map<UUID, UUID> MEDIA = new ConcurrentHashMap<>();
     static volatile boolean identityDown;
     static volatile boolean mediaDown;
@@ -57,7 +58,7 @@ abstract class UsersIntegrationTest {
                         String token = body.path("token").asText();
                         UUID user = ACTIVE.stream().filter(id -> token.equals("access-" + id)).findFirst().orElse(null);
                         result = user == null ? Map.of("active", false)
-                                : Map.of("active", true, "accountId", user, "familyId", UUID.randomUUID());
+                                : Map.of("active", true, "accountId", user, "familyId", UUID.randomUUID(), "status", ONBOARDING.contains(user) ? "ONBOARDING" : "ACTIVE");
                     } else if (path.endsWith("/active-accounts")) {
                         var ids = new HashSet<UUID>();
                         body.path("userIds").forEach(value -> ids.add(UUID.fromString(value.asText())));
@@ -116,6 +117,7 @@ abstract class UsersIntegrationTest {
     void reset() {
         jdbc.sql("TRUNCATE account_deletions, user_blocks, reports, user_audit, outbox_events, profiles CASCADE").update();
         ACTIVE.clear();
+        ONBOARDING.clear();
         MEDIA.clear();
         identityDown = false;
         mediaDown = false;

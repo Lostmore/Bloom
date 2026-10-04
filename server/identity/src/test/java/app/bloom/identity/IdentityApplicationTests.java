@@ -16,7 +16,9 @@ import app.bloom.identity.dto.RefreshRequest;
 import app.bloom.identity.events.OutboxPublisher;
 import app.bloom.identity.exception.InvalidTokenException;
 import app.bloom.identity.model.AccountStatus;
+import app.bloom.identity.model.AccessStatus;
 import app.bloom.identity.repository.EventRepository;
+import app.bloom.identity.security.JwtProvider;
 import app.bloom.identity.security.LoginProtection;
 import app.bloom.identity.service.AccountStatusService;
 import app.bloom.identity.service.AuthService;
@@ -53,7 +55,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 @SpringBootTest(properties = "bloom.events.scheduling-enabled=false")
 @AutoConfigureMockMvc
-@EmbeddedKafka(partitions = 1, topics = "bloom.identity.v1", kraft = true)
+@EmbeddedKafka(partitions = 1, topics = {"bloom.identity.v1", "bloom.users.v1"}, kraft = true)
 class IdentityApplicationTests {
     private static final EmbeddedPostgres POSTGRES = postgres();
     private static final AtomicLong PHONE = new AtomicLong(79000000000L);
@@ -464,12 +466,56 @@ class IdentityApplicationTests {
                 .param(id).query(Integer.class).single();
     }
 
-    private Login register() throws Exception {
+    @Autowired private JwtProvider jwt;
+    @Autowired private KafkaTemplate<String, String> kafka;
+
+    @Test
+    void onboardingCompletionThroughKafkaRequiresRefreshedToken() throws Exception {
+        Login pending = register(false);
+        var claims = jwt.parse(pending.tokens().accessToken());
+        UUID id = jwt.accountId(claims);
+        assertThat(claims.get("status")).isEqualTo("ONBOARDING");
+        String body = json.writeValueAsString(Map.of("token", pending.tokens().accessToken()));
+        String limited = http.perform(post("/internal/identity/onboarding/introspect")
+                .header("X-Internal-Token", INTERNAL_TOKEN).contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat(json.readTree(limited).path("status").asText()).isEqualTo("ONBOARDING");
+        assertThat(jwt.parse(refresh(pending.tokens().refreshToken(), 200).accessToken()).get("status"))
+                .isEqualTo("ONBOARDING");
+        // Login creates a separate valid family after the refresh above.
+        AuthResponse before = login(pending.phone(), PASSWORD, 200);
+        String event = json.writeValueAsString(Map.of("type", "user.profile.completed", "schemaVersion", 1, "userId", id));
+        kafka.send("bloom.users.v1", id.toString(), event).get(10, TimeUnit.SECONDS);
+        kafka.send("bloom.users.v1", id.toString(), event).get(10, TimeUnit.SECONDS);
+        org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(20)).untilAsserted(() ->
+            assertThat(jdbc.sql("SELECT profile_completed FROM accounts WHERE id = ?").param(id)
+                .query(Boolean.class).single()).isTrue());
+        String oldStatus = http.perform(post("/internal/identity/introspect")
+                .header("X-Internal-Token", INTERNAL_TOKEN).contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(Map.of("token", before.accessToken()))))
+                .andReturn().getResponse().getContentAsString();
+        assertThat(json.readTree(oldStatus).path("active").asBoolean()).isFalse();
+        AuthResponse active = refresh(before.refreshToken(), 200);
+        assertThat(jwt.parse(active.accessToken()).get("status")).isEqualTo("ACTIVE");
+        http.perform(get("/auth/me").header("Authorization", bearer(active))).andExpect(status().isOk());
+        assertThat(jdbc.sql("SELECT token_version FROM accounts WHERE id = ?").param(id).query(Long.class).single()).isZero();
+    }
+
+    private Login register() throws Exception { return register(true); }
+
+    private Login register(boolean completed) throws Exception {
         String phone = "+" + PHONE.incrementAndGet();
         var response = http.perform(post("/auth/register").contentType(MediaType.APPLICATION_JSON)
                 .content(json.writeValueAsString(Map.of("phoneNumber", phone, "password", PASSWORD))))
                 .andExpect(status().isCreated()).andReturn().getResponse();
-        return new Login(phone, json.readValue(response.getContentAsString(), AuthResponse.class));
+        AuthResponse tokens = json.readValue(response.getContentAsString(), AuthResponse.class);
+        if (completed) {
+            var claims = jwt.parse(tokens.accessToken());
+            jdbc.sql("UPDATE accounts SET profile_completed = true WHERE id = ?").param(jwt.accountId(claims)).update();
+            tokens = new AuthResponse(jwt.accessToken(jwt.accountId(claims), jwt.familyId(claims), 0, AccessStatus.ACTIVE),
+                    tokens.refreshToken(), tokens.expiresIn());
+        }
+        return new Login(phone, tokens);
     }
 
     private AuthResponse login(String phone, String password, int expected) throws Exception {

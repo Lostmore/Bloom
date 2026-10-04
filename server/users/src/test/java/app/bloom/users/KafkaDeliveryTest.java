@@ -41,6 +41,10 @@ class KafkaDeliveryTest extends UsersIntegrationTest {
             assertThat(event.path("eventId").asText()).isNotBlank();
             assertThat(event.path("schemaVersion").asInt()).isEqualTo(1);
             assertThat(record.value()).doesNotContain("birthDate", "latitude", "phone", "nickname");
+            assertThat(publisher.publishNext()).isTrue();
+            var completion = KafkaTestUtils.getSingleRecord(consumer, "bloom.users.v1", Duration.ofSeconds(20));
+            assertThat(json.readTree(completion.value()).path("type").asText()).isEqualTo("user.profile.completed");
+            assertThat(json.readTree(completion.value()).path("userId").asText()).isEqualTo(owner.toString());
         }
     }
 }

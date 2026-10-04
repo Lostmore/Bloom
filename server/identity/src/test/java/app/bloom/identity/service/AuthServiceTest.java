@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import app.bloom.identity.security.JwtProvider;
+import app.bloom.identity.model.AccessStatus;
+import io.jsonwebtoken.Jwts;
 
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -59,7 +61,7 @@ class AuthServiceTest {
     void jwtRoundTripWithRsaKeys() {
         var provider = new JwtProvider(PRIVATE_KEY, PUBLIC_KEY, Duration.ofMinutes(15), Duration.ofDays(30));
 
-        String token = provider.accessToken(UUID.randomUUID(), UUID.randomUUID(), 0);
+        String token = provider.accessToken(UUID.randomUUID(), UUID.randomUUID(), 0, AccessStatus.ONBOARDING);
         assertThat(provider.parse(token)).isNotNull();
         assertThat(provider.parse("bad-token")).isNull();
     }
@@ -80,9 +82,24 @@ class AuthServiceTest {
 
         var other = new JwtProvider(otherPrivate, otherPublic, Duration.ofMinutes(15), Duration.ofDays(30));
 
-        String token = issuer.accessToken(UUID.randomUUID(), UUID.randomUUID(), 0);
+        String token = issuer.accessToken(UUID.randomUUID(), UUID.randomUUID(), 0, AccessStatus.ONBOARDING);
         assertThat(issuer.parse(token)).isNotNull();
         assertThat(other.parse(token)).isNull();
+    }
+
+    @Test
+    void accessStatusesRoundTripAndUnknownStatusesAreRejected() {
+        var provider = new JwtProvider(PRIVATE_KEY, PUBLIC_KEY, Duration.ofMinutes(15), Duration.ofDays(30));
+        for (AccessStatus status : AccessStatus.values()) {
+            var claims = provider.parse(provider.accessToken(UUID.randomUUID(), UUID.randomUUID(), 0, status));
+            assertThat(claims.get("status")).isEqualTo(status.name());
+            assertThat(provider.accessStatus(claims)).isEqualTo(status);
+        }
+        assertThat(provider.accessStatus(Jwts.claims().build())).isEqualTo(AccessStatus.ONBOARDING);
+        assertThatThrownBy(() -> provider.accessStatus(Jwts.claims().add("status", "UNKNOWN").build()))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> provider.accessStatus(Jwts.claims().add("status", 123).build()))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test

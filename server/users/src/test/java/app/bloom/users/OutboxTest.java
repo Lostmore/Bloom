@@ -38,6 +38,7 @@ class OutboxTest extends UsersIntegrationTest {
         assertThat(jdbc.sql("SELECT payload::text FROM outbox_events WHERE published_at IS NOT NULL")
                 .query(String.class).single()).isEqualTo(payload);
         assertThat(publisher.publishNext()).isTrue();
+        assertThat(publisher.publishNext()).isTrue();
         assertThat(publisher.publishNext()).isFalse();
     }
 
@@ -54,6 +55,6 @@ class OutboxTest extends UsersIntegrationTest {
         assertThat(ACTIVE).doesNotContain(owner);
         assertThat(deletion.processNext()).isFalse();
         assertThat(jdbc.sql("SELECT count(*) FROM outbox_events WHERE published_at IS NULL")
-                .query(Integer.class).single()).isEqualTo(2);
+                .query(Integer.class).single()).isEqualTo(3);
     }
 }

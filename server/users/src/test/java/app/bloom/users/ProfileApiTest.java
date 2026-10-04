@@ -50,7 +50,7 @@ class ProfileApiTest extends UsersIntegrationTest {
         response(as(patch("/users/me"), owner).content("{\"version\":1,\"verified\":true}"), 400);
         response(as(patch("/users/me"), owner).content("{\"version\":1,\"nickname\":\"   \"}"), 400);
         assertThat(response(as(get("/users/me"), owner), 200).path("nickname").asText()).isEqualTo("New name");
-        assertThat(jdbc.sql("SELECT count(*) FROM outbox_events").query(Integer.class).single()).isEqualTo(2);
+        assertThat(jdbc.sql("SELECT count(*) FROM outbox_events").query(Integer.class).single()).isEqualTo(3);
     }
 
     @Test
