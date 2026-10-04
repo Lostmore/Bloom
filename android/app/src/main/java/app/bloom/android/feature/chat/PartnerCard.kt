@@ -32,6 +32,12 @@ fun activityLabel(profile: Profile): String {
 }
 
 /** Users controls visibility; raw Chat presence must not reveal hidden activity. */
+fun chatPartnerOnline(profile: Profile?, presence: Boolean?, typing: Boolean): Boolean {
+    if (typing) return true
+    if (profile == null) return false
+    return if (profile.lastSeen != null) presence ?: profile.online else profile.online
+}
+
 fun chatActivityLabel(profile: Profile, connected: Boolean?): String {
     if (profile.lastSeen == null) return activityLabel(profile)
     return when (connected) {

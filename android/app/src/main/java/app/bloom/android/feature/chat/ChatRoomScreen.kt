@@ -84,7 +84,8 @@ fun ChatRoomScreen(
             loadingHistory = false
         }
     }
-    val messages = if (focused && context.isNotEmpty()) context else state.messages
+    val rawMessages = if (focused && context.isNotEmpty()) context else state.messages
+    val messages = rememberDisappearingMessages(rawMessages, roomId)
     var selectedIds by remember(roomId) { mutableStateOf(setOf<Long>()) }
     var selectionMenu by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
@@ -330,6 +331,9 @@ fun ChatRoomScreen(
                         partnerState?.photoId,
                         Modifier.clickable(enabled = partnerProfile != null) { showPartner = true },
                         size = 40.dp,
+                        online =
+                            state.connected &&
+                                chatPartnerOnline(partnerProfile, state.onlineUsers[partnerId], typingNow),
                     )
                 }
                 Column(
@@ -453,7 +457,7 @@ fun ChatRoomScreen(
                 onClick = {
                     focused = false
                     scope.launch {
-                        if (state.messages.isNotEmpty()) list.scrollToItem(state.messages.lastIndex)
+                        if (messages.isNotEmpty()) list.scrollToItem(messages.lastIndex)
                     }
                 }
             ) {
@@ -519,9 +523,10 @@ fun ChatRoomScreen(
                             }
                         MessageBubble(
                             graph,
-                            message,
+                            if (message.deletedAt != null) message.copy(deletedAt = null) else message,
                             message.senderId == myId,
                             message.id == highlighted,
+                            disappearing = message.deletedAt != null,
                             selected = message.id in selectedIds,
                             selectionActive = selectedIds.isNotEmpty(),
                             select = {

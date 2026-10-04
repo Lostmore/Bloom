@@ -32,6 +32,18 @@ fun ChatListScreen(
     var reload by remember { mutableIntStateOf(0) }
     val connection = remember(graph) { ChatConnection(graph.http, graph.sessions, graph.baseUrl) }
     val live by connection.state.collectAsStateWithLifecycle()
+    var presenceNow by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(live.typingUntil) {
+        presenceNow = System.currentTimeMillis()
+        live.typingUntil.values
+            .filter { it > presenceNow }
+            .distinct()
+            .sorted()
+            .forEach { deadline ->
+                delay((deadline - System.currentTimeMillis()).coerceAtLeast(0))
+                presenceNow = System.currentTimeMillis()
+            }
+    }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     LaunchedEffect(connection, lifecycle) {
         lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -189,7 +201,19 @@ fun ChatListScreen(
         moreResults = nextCursor?.let { next -> { cursor = next } },
         avatar = { item ->
             key(item.id, profileRevision) {
-                ChatPartnerAvatar(graph, item.name, item.photoId)
+                val id = rooms.find { it.id == item.id }?.partnerOrNull(myId)
+                ChatPartnerAvatar(
+                    graph,
+                    item.name,
+                    item.photoId,
+                    online =
+                        live.connected &&
+                            chatPartnerOnline(
+                                partners[id]?.profile,
+                                live.onlineUsers[id],
+                                (live.typingUntil[id] ?: 0) > presenceNow,
+                            ),
+                )
             }
         },
     )

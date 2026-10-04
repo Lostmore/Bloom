@@ -8,7 +8,7 @@ interface UsersApi {
 
     @GET("users/me") suspend fun me(): Profile
 
-    @PUT("users/me") suspend fun create(@Body request: CreateProfile): Profile
+    @POST("users") suspend fun create(@Body request: CreateProfile): Profile
 
     @PATCH("users/me") suspend fun update(@Body request: ProfilePatch): Profile
 

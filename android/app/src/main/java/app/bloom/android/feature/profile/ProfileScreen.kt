@@ -82,6 +82,24 @@ fun ProfileScreen(
             }
         }
     }
+    val startChat: () -> Unit = {
+        scope.launch {
+            busy = true
+            error = null
+            try {
+                val room = graph.chat.create(mapOf("user2_id" to id))
+                if (room.active) openChat(room.id) else error = "Эта переписка недоступна."
+                matched = false
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (exception: Exception) {
+                error = exception.userMessage()
+                matched = false
+            } finally {
+                busy = false
+            }
+        }
+    }
     ProfileCoverHost(profile) { coverModifier, openCover ->
         Column(
             coverModifier
@@ -103,6 +121,11 @@ fun ProfileScreen(
             else if (profile != null) {
                 ProfileHero(profile!!, openCover = openCover)
                 if (id != myId) {
+                    Button(onClick = startChat, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
+                        Icon(Icons.Outlined.ChatBubbleOutline, null, Modifier.size(20.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(if (busy) "Подождите…" else "Написать")
+                    }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                         listOf("skip", "super-interest", "like").forEachIndexed { index, action ->
                             FilledTonalIconButton(
@@ -145,22 +168,7 @@ fun ProfileScreen(
             confirmButton = {
                 TextButton(
                     enabled = !busy,
-                    onClick = {
-                        scope.launch {
-                            busy = true
-                            try {
-                                openChat(graph.chat.create(mapOf("user2_id" to id)).id)
-                                matched = false
-                            } catch (exception: CancellationException) {
-                                throw exception
-                            } catch (exception: Exception) {
-                                error = exception.userMessage()
-                                matched = false
-                            } finally {
-                                busy = false
-                            }
-                        }
-                    },
+                    onClick = startChat,
                 ) {
                     Text("Написать сообщение")
                 }

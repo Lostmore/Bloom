@@ -13,9 +13,10 @@ fun chatRoomPreview(room: ChatRoom, live: ChatMessage?, myId: String, name: Stri
     val useLive =
         live != null &&
             (room.lastMessageAt == null || chatTimestamp(live.createdAt) >= chatTimestamp(room.lastMessageAt))
+    if (useLive && live!!.deletedAt != null) return ChatRowItem(room.id, name, null, room.createdAt)
     val content =
         if (useLive) {
-            if (live!!.deletedAt != null) "Сообщение удалено" else live.content
+            live!!.content
         } else room.lastMessage
     val timestamp = if (useLive) live!!.createdAt else room.lastMessageAt
     val preview =

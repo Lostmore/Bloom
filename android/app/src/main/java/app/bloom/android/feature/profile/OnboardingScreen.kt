@@ -24,8 +24,13 @@ fun OnboardingScreen(
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+    val restricted = graph.sessions.onboardingRequired()
     LaunchedEffect(draft) { store.save(draft) }
-    LaunchedEffect(retry) {
+    LaunchedEffect(restricted) {
+        if (restricted && draft.step == 4) draft = draft.copy(step = 5)
+    }
+    LaunchedEffect(retry, restricted) {
+        if (restricted) return@LaunchedEffect
         catalogError = null
         try {
             catalog = graph.users.interests()
@@ -47,17 +52,21 @@ fun OnboardingScreen(
             error = null
         },
         retryCatalog = { retry++ },
-        back = { if (draft.step > 0) draft = draft.copy(step = draft.step - 1) else logout() },
+        back = {
+            if (draft.step > 0) draft = draft.copy(step = if (restricted && draft.step == 5) 3 else draft.step - 1)
+            else logout()
+        },
         next = {
             error = draft.error()
-            if (error == null && draft.step < 6) draft = draft.copy(step = draft.step + 1)
+            if (error == null && draft.step < 6)
+                draft = draft.copy(step = if (restricted && draft.step == 3) 5 else draft.step + 1)
             else if (error == null)
                 scope.launch {
                     busy = true
                     store.save(draft)
                     try {
                         val saved =
-                            saveOnboarding(graph.users, draft) {
+                            saveOnboarding(graph.users, draft, restricted, graph.sessions::awaitProfileActivation) {
                                 draft = draft.withSavedIdentity(it)
                                 store.save(draft)
                             }
@@ -66,7 +75,10 @@ fun OnboardingScreen(
                     } catch (exception: CancellationException) {
                         throw exception
                     } catch (exception: Exception) {
-                        error = exception.userMessage()
+                        error =
+                            if (exception is app.bloom.android.core.security.ProfileActivationPending)
+                                "Анкета сохранена. Активация ещё идёт — попробуй продолжить чуть позже."
+                            else exception.userMessage()
                     } finally {
                         busy = false
                     }

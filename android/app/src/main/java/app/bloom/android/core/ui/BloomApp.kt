@@ -109,8 +109,13 @@ private fun AuthenticatedApp(
         loading = true
         error = null
         try {
-            profile = graph.users.me()
-            missing = false
+            withContext(Dispatchers.IO) {
+                graph.sessions.freshToken(
+                    if (graph.sessions.tokenStatus() == null) graph.sessions.session.value?.accessToken else null
+                )
+            }
+            missing = graph.sessions.onboardingRequired()
+            if (!missing) profile = graph.users.me()
         } catch (exception: CancellationException) {
             throw exception
         } catch (exception: Exception) {

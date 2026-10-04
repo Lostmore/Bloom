@@ -1,7 +1,9 @@
 package app.bloom.android.core.security
 
+import android.util.Base64
 import app.bloom.android.core.model.Tokens
 import com.google.gson.Gson
+import com.google.gson.JsonObject
 import java.io.IOException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -17,6 +19,26 @@ class SessionManager(
     private val json = Gson()
     private val mutable = MutableStateFlow(store.load())
     val session = mutable.asStateFlow()
+
+    // UI routing only. Access authorization is always checked by the server.
+    fun onboardingRequired(): Boolean = tokenStatus() == "ONBOARDING"
+
+    fun tokenStatus(): String? = runCatching {
+        val encoded = session.value?.accessToken?.split('.')?.getOrNull(1) ?: return null
+        val payload = Base64.decode(encoded, Base64.URL_SAFE)
+        json.fromJson(String(payload, Charsets.UTF_8), JsonObject::class.java).get("status")?.asString
+    }.getOrNull()
+
+    suspend fun awaitProfileActivation() {
+        repeat(15) {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                freshToken(session.value?.accessToken)
+            }
+            if (tokenStatus() == "ACTIVE") return
+            kotlinx.coroutines.delay(1000)
+        }
+        throw ProfileActivationPending()
+    }
 
     @Synchronized
     fun accept(tokens: Tokens) {
@@ -75,3 +97,5 @@ class SessionManager(
         }
     }
 }
+
+class ProfileActivationPending : Exception()

@@ -20,6 +20,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import app.bloom.android.AppGraph
 import app.bloom.android.core.model.ChatMessage
+import app.bloom.android.core.ui.particleDissolve
 import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -33,11 +34,13 @@ fun MessageBubble(
     highlighted: Boolean,
     edit: ((String) -> Boolean)? = null,
     delete: (() -> Boolean)? = null,
+    disappearing: Boolean = false,
     selected: Boolean = false,
     selectionActive: Boolean = false,
     select: (() -> Unit)? = null,
     startEditing: () -> Unit = {},
 ) {
+    if (message.deletedAt != null) return
     var details by remember(message.id) { mutableStateOf(false) }
     var menu by remember(message.id) { mutableStateOf(false) }
     var editing by remember(message.id) { mutableStateOf(false) }
@@ -53,8 +56,8 @@ fun MessageBubble(
         deleting = false
         actionError = null
     }
-    LaunchedEffect(message.deletedAt) {
-        if (message.deletedAt != null) closeDialog()
+    LaunchedEffect(message.deletedAt, disappearing) {
+        if (message.deletedAt != null || disappearing) closeDialog()
     }
     if (details || deleting)
         AlertDialog(
@@ -62,7 +65,7 @@ fun MessageBubble(
             title = { Text(if (deleting) "Удалить сообщение?" else "О сообщении") },
             text = {
                 Column {
-                    if (deleting) Text("Сообщение будет помечено удалённым для участников чата.")
+                    if (deleting) Text("Сообщение будет удалено у тебя и у собеседника.")
                     else {
                         Text(
                             if (readTime != null)
@@ -133,7 +136,7 @@ fun MessageBubble(
                     if (readTime != null) Icons.Outlined.DoneAll else Icons.Outlined.Done,
                     if (readTime != null) "Прочитано" else "Отправлено",
                     Modifier.size(18.dp)
-                        .clickable(enabled = readTime != null && !selectionActive) {
+                        .clickable(enabled = !disappearing && readTime != null && !selectionActive) {
                             menu = true
                         }
                         .padding(1.dp),
@@ -149,8 +152,9 @@ fun MessageBubble(
     ) {
         Surface(
             Modifier.widthIn(max = 310.dp)
+                .particleDissolve(disappearing, MaterialTheme.colorScheme.onSurface)
                 .combinedClickable(
-                    enabled = !editing && message.deletedAt == null,
+                    enabled = !disappearing && !editing && message.deletedAt == null,
                     onClick = {
                         if (selectionActive) select?.invoke() else menu = true
                     },
@@ -161,7 +165,8 @@ fun MessageBubble(
                         while (true) {
                             val event = awaitPointerEvent()
                             if (
-                                !editing &&
+                                !disappearing &&
+                                    !editing &&
                                     message.deletedAt == null &&
                                     event.type == PointerEventType.Press &&
                                     event.buttons.isSecondaryPressed
@@ -255,8 +260,6 @@ fun MessageBubble(
                 if (selected) Text("✓ Выбрано", style = MaterialTheme.typography.labelSmall)
                 if (compactText) {
                     CompactMessageText(message.content.orEmpty(), footer)
-                } else if (message.deletedAt != null) {
-                    Text("Сообщение удалено", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } else {
                     val photos =
                         message.attachments
