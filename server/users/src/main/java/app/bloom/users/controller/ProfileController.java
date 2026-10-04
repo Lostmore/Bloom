@@ -38,6 +38,12 @@ public class ProfileController {
         return profiles.create(user, request);
     }
 
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    public Profile onboard(@AuthenticationPrincipal UUID user, @Valid @RequestBody CreateProfileRequest request) {
+        return profiles.onboard(user, request);
+    }
+
     @GetMapping("/me")
     public Profile me(@AuthenticationPrincipal UUID user) {
         return profiles.me(user);

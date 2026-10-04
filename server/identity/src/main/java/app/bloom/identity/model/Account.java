@@ -25,6 +25,20 @@ public class Account {
     @Column(name = "token_version", nullable = false)
     private long tokenVersion;
 
+    @Column(name = "profile_completed", nullable = false)
+    private boolean profileCompleted;
+
+    public boolean isProfileCompleted() { return profileCompleted; }
+
+    public AccessStatus getAccessStatus() {
+        return profileCompleted ? AccessStatus.ACTIVE : AccessStatus.ONBOARDING;
+    }
+
+    public void completeProfile() {
+        profileCompleted = true;
+        updatedAt = Instant.now();
+    }
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 

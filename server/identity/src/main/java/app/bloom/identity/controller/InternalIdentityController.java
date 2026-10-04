@@ -3,6 +3,7 @@ package app.bloom.identity.controller;
 import app.bloom.identity.exception.AuthenticationException;
 import app.bloom.identity.model.Account;
 import app.bloom.identity.model.AccountStatus;
+import app.bloom.identity.model.AccessStatus;
 import app.bloom.identity.repository.AccountRepository;
 import app.bloom.identity.security.AccessIdentity;
 import app.bloom.identity.security.AccessValidator;
@@ -54,10 +55,22 @@ public class InternalIdentityController {
         }
     }
 
+    public record OnboardingTokenStatus(boolean active, UUID accountId, UUID familyId, AccessStatus status) {}
+
+    @PostMapping("/internal/identity/onboarding/introspect")
+    public OnboardingTokenStatus onboarding(@Valid @RequestBody TokenRequest request) {
+        try {
+            var identity = validator.validateForOnboarding(request.token());
+            return new OnboardingTokenStatus(true, identity.accountId(), identity.familyId(), identity.status());
+        } catch (AuthenticationException exception) {
+            return new OnboardingTokenStatus(false, null, null, null);
+        }
+    }
+
     @PostMapping("/internal/identity/active-accounts")
     public Set<UUID> activeAccounts(@Valid @RequestBody AccountsRequest request) {
         return accounts.findAllById(request.userIds()).stream()
-                .filter(account -> account.getStatus() == AccountStatus.ACTIVE)
+                .filter(account -> account.getStatus() == AccountStatus.ACTIVE && account.isProfileCompleted())
                 .map(Account::getId)
                 .collect(Collectors.toSet());
     }

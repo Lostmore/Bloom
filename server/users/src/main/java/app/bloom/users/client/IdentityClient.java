@@ -28,12 +28,17 @@ public class IdentityClient {
         http = ServiceHttp.create(builder, url, token);
     }
 
-    public UUID authenticate(String token) {
+    public UUID authenticate(String token) { return authenticate(token, false); }
+
+    public UUID authenticate(String token, boolean creatingProfile) {
         try {
-            TokenStatusResponse status = http.post().uri("/internal/identity/introspect")
+            TokenStatusResponse status = http.post().uri("/internal/identity/onboarding/introspect")
                 .body(Map.of("token", token)).retrieve().body(TokenStatusResponse.class);
             if (status == null || !status.active() || status.accountId() == null || status.familyId() == null) {
                 throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid access token");
+            }
+            if (!("ACTIVE".equals(status.status()) || creatingProfile && "ONBOARDING".equals(status.status()))) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Complete profile and refresh token");
             }
             return status.accountId();
         } catch (RestClientException exception) {

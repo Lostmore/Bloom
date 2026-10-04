@@ -2,6 +2,7 @@ package app.bloom.identity.security;
 
 import app.bloom.identity.exception.AuthenticationException;
 import app.bloom.identity.model.Account;
+import app.bloom.identity.model.AccessStatus;
 import app.bloom.identity.repository.AccountRepository;
 import app.bloom.identity.repository.RefreshSessionRepository;
 import java.time.Instant;
@@ -20,6 +21,12 @@ public class AccessValidator {
     }
 
     public AccessIdentity validate(String token) {
+        AccessIdentity identity = validateForOnboarding(token);
+        if (identity.status() != AccessStatus.ACTIVE) throw new AuthenticationException();
+        return identity;
+    }
+
+    public AccessIdentity validateForOnboarding(String token) {
         var claims = jwt.parse(token);
         if (claims == null || !"access".equals(jwt.type(claims))) {
             throw new AuthenticationException();
@@ -28,14 +35,17 @@ public class AccessValidator {
             var accountId = jwt.accountId(claims);
             var familyId = jwt.familyId(claims);
             long version = jwt.tokenVersion(claims);
-            accounts.findById(accountId).filter(Account::isActive)
-                    .filter(account -> account.getTokenVersion() == version)
+            Account account = accounts.findById(accountId).filter(Account::isActive)
+                    .filter(candidate -> candidate.getTokenVersion() == version)
                     .orElseThrow(AuthenticationException::new);
             if (!sessions.existsByAccountIdAndFamilyIdAndRevokedFalseAndExpiresAtAfter(
                     accountId, familyId, Instant.now())) {
                 throw new AuthenticationException();
             }
-            return new AccessIdentity(accountId, familyId);
+            // Old tokens require refresh; completing a profile never upgrades an issued token.
+            AccessStatus status = jwt.accessStatus(claims);
+            if (status == AccessStatus.ACTIVE && !account.isProfileCompleted()) status = AccessStatus.ONBOARDING;
+            return new AccessIdentity(accountId, familyId, status);
         } catch (IllegalArgumentException | NullPointerException exception) {
             throw new AuthenticationException();
         }

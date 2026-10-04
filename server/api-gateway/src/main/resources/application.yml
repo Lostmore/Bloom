@@ -89,6 +89,8 @@ spring:
                 - Path=/api/v1/notifications/**
 
 bloom:
+  identity:
+    token: ${IDENTITY_INTERNAL_TOKEN:}
   api-docs:
     enabled: ${API_DOCS_ENABLED:true}
     async-services:
