@@ -23,6 +23,10 @@ def add_go_identity_credentials(overrides):
         environment = overrides["services"].setdefault(name, {}).setdefault("environment", {})
         if not environment.get("INTERNAL_TOKEN"):
             environment["INTERNAL_TOKEN"] = token
+    gateway_env = overrides["services"].setdefault("api-gateway", {}).setdefault("environment", {})
+    if not gateway_env.get("IDENTITY_INTERNAL_TOKEN"):
+        gateway_env["IDENTITY_INTERNAL_TOKEN"] = token
+
 
 
 def add_interactions(overrides):
