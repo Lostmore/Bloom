@@ -29,14 +29,14 @@ def add_go_identity_credentials(overrides):
 
 
 
-def add_interactions(overrides):
-    path = output / "interactions.yml"
+def add_domain_service(overrides, service):
+    path = output / f"{service}.yml"
     identity = yaml.safe_load((output / "identity.yml").read_text(encoding="utf-8"))
     users = yaml.safe_load((output / "users.yml").read_text(encoding="utf-8"))
     if not path.exists():
-        if "interactions" in overrides["services"]:
-            raise SystemExit("Restore the missing interactions.yml; its existing database password was not rotated.")
-        defaults = root / "server/interactions/src/main/resources/application.yml"
+        if service in overrides["services"]:
+            raise SystemExit(f"Restore the missing {service}.yml; its existing database password was not rotated.")
+        defaults = root / "server" / service / "src/main/resources/application.yml"
         config = yaml.safe_load(defaults.read_text(encoding="utf-8"))
         config["spring"]["datasource"]["password"] = secrets.token_hex(24)
         config["bloom"]["internal-token"] = secrets.token_hex(32)
@@ -44,13 +44,13 @@ def add_interactions(overrides):
         config["bloom"]["users"]["token"] = users["bloom"]["internal-token"]
         path.write_text(yaml.safe_dump(config, allow_unicode=True, sort_keys=False), encoding="utf-8")
     config = yaml.safe_load(path.read_text(encoding="utf-8"))
-    overrides["services"].setdefault("interactions", {"volumes": [{
+    overrides["services"].setdefault(service, {"volumes": [{
         "type": "bind", "source": "./" + path.relative_to(root).as_posix(),
         "target": "/app/config/application.yml", "read_only": True,
     }]})
-    overrides["services"].setdefault("interactions-db-init", {"environment": {
+    overrides["services"].setdefault(f"{service}-db-init", {"environment": {
         "PGPASSWORD": overrides["services"]["postgres"]["environment"]["POSTGRES_PASSWORD"],
-        "INTERACTIONS_DATABASE_PASSWORD": config["spring"]["datasource"]["password"],
+        f"{service.upper()}_DATABASE_PASSWORD": config["spring"]["datasource"]["password"],
     }})
 
 
@@ -72,7 +72,8 @@ if args.reuse and output.exists() and any(output.iterdir()):
     compose_file = output / "compose.yml"
     overrides = yaml.safe_load(compose_file.read_text(encoding="utf-8"))
     before_compose = yaml.safe_dump(overrides, sort_keys=False)
-    add_interactions(overrides)
+    for service in ("interactions", "activities"):
+        add_domain_service(overrides, service)
     add_go_identity_credentials(overrides)
     if yaml.safe_dump(overrides, sort_keys=False) != before_compose:
         compose_file.write_text(yaml.safe_dump(overrides, sort_keys=False), encoding="utf-8")
@@ -126,7 +127,8 @@ overrides["services"]["chat"] = {"environment": {
 overrides["services"]["media"] = {"environment": {
     "DATABASE_URL": f"postgres://bloom_media:{passwords['media']}@postgres:5432/bloom_media?sslmode=disable"
 }}
-add_interactions(overrides)
+for service in ("interactions", "activities"):
+    add_domain_service(overrides, service)
 add_go_identity_credentials(overrides)
 (output / "compose.yml").write_text(yaml.safe_dump(overrides, sort_keys=False), encoding="utf-8")
 print(f"Stack configuration prepared in {args.output} (credentials not printed).")

@@ -203,7 +203,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 384m
+          memory: 300m
 
   chat:
     build: ./server/chat

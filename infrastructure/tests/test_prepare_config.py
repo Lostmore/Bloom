@@ -18,7 +18,7 @@ class PrepareConfigTest(unittest.TestCase):
         scripts = self.root / "infrastructure"
         scripts.mkdir()
         shutil.copyfile(Path(__file__).resolve().parents[1] / "prepare-ci.py", scripts / "prepare-ci.py")
-        for name in ("identity", "users", "interactions"):
+        for name in ("identity", "users", "interactions", "activities"):
             target = self.root / "server" / name / "src/main/resources/application.yml"
             target.parent.mkdir(parents=True)
             config = {
